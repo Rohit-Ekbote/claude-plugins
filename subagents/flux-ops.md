@@ -191,7 +191,7 @@ flux get source git flux-system -n flux-system
 
 ```bash
 # 1. Ensure Flux repo is up to date
-cd ~/.claude/rwenv/flux-repos/<rwenv>/
+cd ${RWENV_CONFIG_DIR:-~/.claude/rwenv}/flux-repos/<rwenv>/
 git pull
 
 # 2. Create deployment branch
@@ -232,7 +232,7 @@ kubectl get events -n flux-system --field-selector reason=ReconciliationFailed
 flux get source git flux-system -n flux-system
 
 # 5. If source issue, check Flux repo manually
-cd ~/.claude/rwenv/flux-repos/<rwenv>/
+cd ${RWENV_CONFIG_DIR:-~/.claude/rwenv}/flux-repos/<rwenv>/
 git log --oneline -5
 git status
 ```
