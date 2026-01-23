@@ -157,7 +157,7 @@ Example:
 User: "update papi to v2.3.0"
 
 1. Lookup: papi → namespace: runwhen-local, fluxPath: clusters/rdebug/apps/papi/
-2. Find manifest at: ~/.claude/rwenv/flux-repos/<rwenv>/clusters/rdebug/apps/papi/
+2. Find manifest at: ${RWENV_CONFIG_DIR:-~/.claude/rwenv}/flux-repos/<rwenv>/clusters/rdebug/apps/papi/
 3. Edit values.yaml with new image tag
 4. Commit, push, create PR
 ```
