@@ -337,6 +337,7 @@ get_flux_repo_url() {
 # Get Flux repo local path for rwenv
 get_flux_repo_path() {
     local name="$1"
+    get_rwenv_by_name "$name" >/dev/null || return 1
     local config_dir
     config_dir="$(get_config_dir)"
 
@@ -347,7 +348,7 @@ get_flux_repo_path() {
 is_flux_repo_cloned() {
     local name="$1"
     local repo_path
-    repo_path="$(get_flux_repo_path "$name")"
+    repo_path="$(get_flux_repo_path "$name")" || return 1
 
     [[ -d "$repo_path/.git" ]]
 }
@@ -388,7 +389,7 @@ ensure_flux_repo() {
 is_flux_repo_dirty() {
     local name="$1"
     local repo_path
-    repo_path="$(get_flux_repo_path "$name")"
+    repo_path="$(get_flux_repo_path "$name")" || return 1
 
     if [[ ! -d "$repo_path/.git" ]]; then
         return 1  # Not cloned, so not dirty
