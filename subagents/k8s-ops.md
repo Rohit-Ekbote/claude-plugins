@@ -25,7 +25,11 @@ Before executing any operations:
 2. **Load rwenv configuration** from `${RWENV_CONFIG_DIR:-~/.claude/rwenv}/envs.json`
    - Get `kubernetesContext`, `kubeconfigPath`, `readOnly` settings
 
-3. **Check dev container** is running
+3. **Load services catalog** from plugin's `data/services-catalog.json`
+   - Use for service → namespace lookups (e.g., "papi" → namespace: runwhen-local)
+   - If catalog missing, warn but continue (can specify namespace manually)
+
+4. **Check dev container** is running
    - Container name from `devContainer` field in envs.json
 
 ## Command Execution Pattern
@@ -182,4 +186,26 @@ flux reconcile kustomization <name> -n flux-system
 
 # 4. Watch for completion
 flux get kustomization <name> -n flux-system --watch
+```
+
+## Service Context Integration
+
+When a service name is mentioned without a namespace:
+
+1. **Look up in services catalog** (`data/services-catalog.json`)
+2. **Extract namespace** from catalog entry
+3. **Use namespace** in kubectl commands automatically
+
+Example:
+```
+User: "get logs for papi"
+
+1. Lookup: papi → namespace: runwhen-local
+2. Execute: kubectl logs -l app=papi -n runwhen-local
+```
+
+If service not in catalog:
+```
+Service 'foo' not found in services catalog.
+Please specify the namespace, or run /services-mapping regenerate to rebuild the catalog.
 ```
