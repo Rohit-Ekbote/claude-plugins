@@ -23,13 +23,17 @@ Before executing any operations:
 1. **Verify rwenv is set** for current directory
    - Database operations require an rwenv to get kubernetes context
 
-2. **Load database configuration** from `databases` section in envs.json
+2. **Load rwenv configuration** from `${RWENV_CONFIG_DIR:-~/.claude/rwenv}/envs.json`
+   - Get `kubernetesContext`, `kubeconfigPath` settings
+   - These are required to access Kubernetes secrets for credentials
+
+3. **Load database configuration** from `databases` section in envs.json
    - Databases are shared across all rwenvs
    - Each database has: namespace, secretName, pgbouncerHost, database, username
 
-3. **Fetch credentials** from Kubernetes secret at runtime
+4. **Fetch credentials** from Kubernetes secret at runtime
    - Never store or cache passwords
-   - Use the active rwenv's kubeconfig/context to access secrets
+   - Use kubeconfig/context from step 2 to access secrets
 
 ## Safety: Always Read-Only
 
