@@ -1,0 +1,17 @@
+{
+  "name": "rwenv",
+  "version": "0.1.0",
+  "description": "RunWhen environment management for multi-cluster Kubernetes operations",
+  "config": {
+    "configDir": {
+      "default": "~/.claude/rwenv",
+      "env": "RWENV_CONFIG_DIR",
+      "description": "Directory containing envs.json and env-consumers.json"
+    }
+  },
+  "skills": ["skills/*.md"],
+  "hooks": {
+    "pre-command": "hooks/pre-command.sh"
+  },
+  "subagents": ["subagents/*.md"]
+}
