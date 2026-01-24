@@ -1,0 +1,20 @@
+{
+  "name": "rwenv",
+  "description": "Multi-cluster Kubernetes environment management with safety guardrails",
+  "version": "0.1.0",
+  "author": {
+    "name": "Rohit Ekbote"
+  },
+  "homepage": "https://github.com/Rohit-Ekbote/rwenv",
+  "repository": "https://github.com/Rohit-Ekbote/rwenv",
+  "license": "MIT",
+  "keywords": ["kubernetes", "k8s", "gke", "k3s", "multi-cluster", "environment", "safety"],
+  "scope": "user",
+  "config": {
+    "configDir": {
+      "default": "~/.claude/rwenv",
+      "env": "RWENV_CONFIG_DIR",
+      "description": "Directory containing envs.json and env-consumers.json"
+    }
+  }
+}

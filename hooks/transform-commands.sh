@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pre-command.sh - Command transformation and safety enforcement for rwenv
+# transform-commands.sh - Command transformation and safety enforcement for rwenv
 #
 # This hook intercepts kubectl, helm, flux, gcloud, and vault commands,
 # transforms them to run through the dev container with explicit context/project flags,

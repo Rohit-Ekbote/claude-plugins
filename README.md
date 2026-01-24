@@ -1,4 +1,4 @@
-# rwenv - RunWhen Environment Plugin for Claude Code
+# rwenv - RunWhen Environment Management for Claude Code
 
 A Claude Code plugin for managing multi-cluster Kubernetes environments. Enables safe interaction with GKE and k3s clusters through a dev container, with automatic context injection and safety enforcement.
 
@@ -9,29 +9,28 @@ A Claude Code plugin for managing multi-cluster Kubernetes environments. Enables
 - **Write Protection** - Enforce read-only mode for sensitive environments; gcloud and database always read-only
 - **Git Safety** - Protect main branch in current project while allowing main in rwenv repos
 
+## Installation
+
+```bash
+claude plugins add Rohit-Ekbote/rwenv
+```
+
 ## Quick Start
 
-1. **Install the plugin**
-   ```bash
-   # Add to your Claude Code plugins
-   claude plugins add /path/to/rwenv-plugin
-   ```
-
-2. **Set up configuration**
+1. **Set up configuration**
    ```bash
    mkdir -p ~/.claude/rwenv
-   cp /path/to/rwenv-plugin/config/envs.example.json ~/.claude/rwenv/envs.json
-   # Edit with your environment details
+   # Create envs.json with your environment details (see config/envs.example.json)
    ```
 
-3. **Select an environment**
+2. **Select an environment**
    ```
    /rwenv-list          # See available environments
    /rwenv-set rdebug    # Select environment for current directory
    /rwenv-cur           # View current environment details
    ```
 
-4. **Use kubectl/helm/flux/gcloud as normal** - commands are automatically transformed
+3. **Use kubectl/helm/flux/gcloud as normal** - commands are automatically transformed
 
 ## Skills
 
@@ -62,27 +61,32 @@ In the current project directory:
 - Cannot commit directly to main/master/production
 - Cannot push to protected branches
 - Cannot merge into protected branches
+- Cannot create, delete, or push tags
 
 External repos (flux repos, etc.) are not restricted.
 
 ## Directory Structure
 
 ```
-rwenv-plugin/
-├── manifest.json          # Plugin metadata
+rwenv/
+├── .claude-plugin/
+│   └── plugin.json        # Plugin metadata
 ├── config/
 │   └── envs.example.json  # Example configuration
 ├── skills/
 │   ├── rwenv-list.md      # List environments
 │   ├── rwenv-cur.md       # Show current environment
 │   ├── rwenv-set.md       # Set environment
-│   └── rwenv-add.md       # Add new environment
+│   ├── rwenv-add.md       # Add new environment
+│   └── services-mapping.md # Map services to K8s resources
 ├── hooks/
-│   ├── pre-command.sh     # Command transformation
+│   ├── hooks.json         # Hook declarations
+│   ├── transform-commands.sh  # Command transformation
 │   └── validate-git.sh    # Git branch protection
 ├── subagents/
 │   ├── k8s-ops.md         # Kubernetes operations
 │   ├── db-ops.md          # Database queries
+│   ├── flux-ops.md        # Flux GitOps operations
 │   └── gcloud-ops.md      # GCP operations
 ├── scripts/
 │   ├── pg_query.sh        # Database query script
