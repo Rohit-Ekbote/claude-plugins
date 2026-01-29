@@ -1,0 +1,18 @@
+{
+  "name": "rwenv",
+  "description": "Multi-cluster Kubernetes environment management for Claude Code",
+  "owner": {
+    "name": "Rohit Ekbote"
+  },
+  "plugins": [
+    {
+      "name": "rwenv",
+      "description": "Multi-cluster Kubernetes environment management with safety guardrails",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "Rohit Ekbote"
+      }
+    }
+  ]
+}
