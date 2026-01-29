@@ -22,6 +22,20 @@ get_dev_container() {
     jq -r '.devContainer // "alpine-dev-container-zsh-rdebug"' "$envs_file"
 }
 
+# Get useDevContainer setting (defaults to true)
+get_use_dev_container() {
+    local config_dir
+    config_dir="$(get_config_dir)"
+    local envs_file="$config_dir/envs.json"
+
+    if [[ ! -f "$envs_file" ]]; then
+        echo "true"  # Default to dev container
+        return
+    fi
+
+    jq -r '.useDevContainer // true' "$envs_file"
+}
+
 # Load envs.json content
 load_envs() {
     local config_dir
