@@ -39,6 +39,7 @@ Description: VM based dev setup (k3s)
 Context:     rdebug-61
 Kubeconfig:  /root/.kube/config
 Read-Only:   No
+Exec Mode:   Dev Container (alpine-dev-container-zsh-rdebug)
 GCP Project: N/A
 Flux Repo:   https://gitea.rdebug-61.local.runwhen.com/platform-setup/runwhen-platform-self-hosted-local-dev
 
@@ -53,7 +54,12 @@ Services:
 Directory mapping: /Users/rohitekbote/wd/myproject -> rdebug
 ```
 
-5. **For GKE environments**, also show the GCP project:
+5. **Show execution mode**:
+   - Read `useDevContainer` from `envs.json` (defaults to `true`)
+   - If `true`: `Exec Mode:   Dev Container (<devContainer name>)`
+   - If `false`: `Exec Mode:   Local (tools from PATH)`
+
+6. **For GKE environments**, also show the GCP project:
 ```
 Current rwenv: gke-prod
 
@@ -62,6 +68,7 @@ Description: GKE production cluster
 Context:     gke_project_region_cluster
 Kubeconfig:  /root/.kube/gke-prod.config
 Read-Only:   Yes
+Exec Mode:   Dev Container (alpine-dev-container-zsh-gke-prod)
 GCP Project: my-gcp-project
 Flux Repo:   https://github.com/org/flux-repo
 
@@ -73,7 +80,7 @@ Directory mapping: /Users/rohitekbote/wd/project-b -> gke-prod
 WARNING: This environment is READ-ONLY. Write operations will be blocked.
 ```
 
-6. **If the rwenv name in consumer mapping doesn't exist in envs.json**, display:
+7. **If the rwenv name in consumer mapping doesn't exist in envs.json**, display:
 ```
 ERROR: rwenv 'old-env' configured for this directory but not found in envs.json.
 
