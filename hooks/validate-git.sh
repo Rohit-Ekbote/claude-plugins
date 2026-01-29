@@ -7,6 +7,8 @@
 # Rules:
 # - Current project (cwd): Block push/commit/merge to main/master, block tag operations
 # - rwenv repos (not cwd): Allow all git operations including main branch
+#
+# Claude Code PreToolUse hooks receive JSON on stdin and must use exit code 2 to block.
 
 set -euo pipefail
 
@@ -20,13 +22,20 @@ source "$PLUGIN_DIR/lib/rwenv-utils.sh"
 # Protected branches
 PROTECTED_BRANCHES="main|master|production"
 
-# Parse the git command
-ORIGINAL_CMD="$*"
+# Read JSON input from stdin
+INPUT_JSON=$(cat)
+
+# Extract the command from the JSON input
+ORIGINAL_CMD=$(echo "$INPUT_JSON" | jq -r '.tool_input.command // empty')
+
+# If no command found, pass through
+if [[ -z "$ORIGINAL_CMD" ]]; then
+    exit 0
+fi
 
 # Check if this is a git command
 if ! echo "$ORIGINAL_CMD" | grep -q "^git "; then
     # Not a git command, pass through
-    echo "$ORIGINAL_CMD"
     exit 0
 fi
 
@@ -34,7 +43,6 @@ fi
 CWD="${PWD}"
 GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
     # Not in a git repository, pass through
-    echo "$ORIGINAL_CMD"
     exit 0
 }
 
@@ -118,7 +126,7 @@ Create a feature branch instead:
 
 Then create a pull request to merge into $current_branch.
 EOF
-            exit 1
+            exit 2
         fi
     fi
 
@@ -139,7 +147,7 @@ Push to a feature branch instead and create a pull request:
 
 Then create a pull request to merge into $target_branch.
 EOF
-            exit 1
+            exit 2
         fi
 
         # Also check if current branch is protected (for plain 'git push')
@@ -154,7 +162,7 @@ Create a feature branch instead:
   git checkout -b feature/my-change
   git push -u origin feature/my-change
 EOF
-            exit 1
+            exit 2
         fi
     fi
 
@@ -169,7 +177,7 @@ Project: $GIT_ROOT
 
 Use a pull request to merge changes into $current_branch.
 EOF
-            exit 1
+            exit 2
         fi
     fi
 
@@ -184,7 +192,7 @@ Project: $GIT_ROOT
 
 Tag operations should be performed through CI/CD pipelines or release processes.
 EOF
-        exit 1
+        exit 2
     fi
 
     # Check: git push --tags or git push with tag references
@@ -197,7 +205,7 @@ Project: $GIT_ROOT
 
 Tag operations should be performed through CI/CD pipelines or release processes.
 EOF
-        exit 1
+        exit 2
     fi
 
     # Check: git push --delete (could be deleting tags or branches)
@@ -210,7 +218,7 @@ Project: $GIT_ROOT
 
 Deletion of remote branches/tags should be performed through the web interface or CI/CD.
 EOF
-        exit 1
+        exit 2
     fi
 
     # Check: git push origin :refs/tags/ (another way to delete remote tags)
@@ -223,7 +231,7 @@ Project: $GIT_ROOT
 
 Tag operations should be performed through CI/CD pipelines or release processes.
 EOF
-        exit 1
+        exit 2
     fi
 
     # Check: git checkout main/master (allow, but warn)
@@ -247,5 +255,5 @@ EOF
 # Main execution
 check_git_safety "$ORIGINAL_CMD"
 
-# If we get here, command is allowed
-echo "$ORIGINAL_CMD"
+# If we get here, command is allowed (exit 0 with no output means no modification)
+exit 0

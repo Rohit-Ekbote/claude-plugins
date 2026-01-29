@@ -164,7 +164,7 @@ build_kubectl() {
     context="$(get_kubernetes_context "$rwenv_name")"
     container="$(get_dev_container)"
 
-    echo "docker exec -it $container kubectl --kubeconfig=$kubeconfig --context=$context $args"
+    echo "docker exec -i $container kubectl --kubeconfig=$kubeconfig --context=$context $args"
 }
 
 # Build command for helm
@@ -178,7 +178,7 @@ build_helm() {
     context="$(get_kubernetes_context "$rwenv_name")"
     container="$(get_dev_container)"
 
-    echo "docker exec -it $container helm --kubeconfig=$kubeconfig --kube-context=$context $args"
+    echo "docker exec -i $container helm --kubeconfig=$kubeconfig --kube-context=$context $args"
 }
 
 # Build command for flux
@@ -192,7 +192,7 @@ build_flux() {
     context="$(get_kubernetes_context "$rwenv_name")"
     container="$(get_dev_container)"
 
-    echo "docker exec -it $container flux --kubeconfig=$kubeconfig --context=$context $args"
+    echo "docker exec -i $container flux --kubeconfig=$kubeconfig --context=$context $args"
 }
 
 # Build command for gcloud
@@ -219,7 +219,7 @@ Use a GKE rwenv: /rwenv-set <gke-rwenv-name>"
         error "No GCP project configured for rwenv '$rwenv_name'"
     fi
 
-    echo "docker exec -it $container gcloud --project=$project $args"
+    echo "docker exec -i $container gcloud --project=$project $args"
 }
 
 # Build command for vault
@@ -232,7 +232,7 @@ build_vault() {
     container="$(get_dev_container)"
 
     # Vault doesn't need kubeconfig/context, just run through container
-    echo "docker exec -it $container vault $args"
+    echo "docker exec -i $container vault $args"
 }
 
 # Main

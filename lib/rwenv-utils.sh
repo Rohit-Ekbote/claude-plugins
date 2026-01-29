@@ -174,10 +174,11 @@ get_gcp_project() {
 }
 
 # Build docker exec command prefix
+# Note: Use -i only (not -it) since Claude Code runs non-interactively
 build_docker_exec_prefix() {
     local container
     container="$(get_dev_container)"
-    echo "docker exec -it $container"
+    echo "docker exec -i $container"
 }
 
 # Build kubectl command with rwenv context

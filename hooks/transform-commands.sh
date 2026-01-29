@@ -4,6 +4,8 @@
 # This hook intercepts kubectl, helm, flux, gcloud, and vault commands,
 # transforms them to run through the dev container with explicit context/project flags,
 # and enforces read-only mode for protected environments.
+#
+# Claude Code PreToolUse hooks receive JSON on stdin and must output JSON to modify tool input.
 
 set -euo pipefail
 
@@ -17,16 +19,67 @@ source "$PLUGIN_DIR/lib/rwenv-utils.sh"
 # Commands that trigger rwenv handling
 RWENV_COMMANDS="kubectl|helm|flux|gcloud|vault"
 
-# Parse hook input (command is passed as arguments or via stdin)
-ORIGINAL_CMD="$*"
+# Read JSON input from stdin
+INPUT_JSON=$(cat)
+
+# Extract the command from the JSON input
+# Format: {"tool_name": "Bash", "tool_input": {"command": "...", "description": "...", ...}}
+ORIGINAL_CMD=$(echo "$INPUT_JSON" | jq -r '.tool_input.command // empty')
+
+# If no command found, pass through
+if [[ -z "$ORIGINAL_CMD" ]]; then
+    exit 0
+fi
 
 # Extract the base command (first word)
 BASE_CMD=$(echo "$ORIGINAL_CMD" | awk '{print $1}')
 
+# Check for dangerous docker commands that could affect the dev container
+if [[ "$BASE_CMD" == "docker" ]]; then
+    DEV_CONTAINER=$(get_dev_container 2>/dev/null) || true
+
+    if [[ -n "$DEV_CONTAINER" ]]; then
+        # Dangerous docker operations that could stop/remove the dev container
+        DANGEROUS_DOCKER_OPS="stop|rm|remove|kill|restart|pause|update"
+
+        # Check if command targets the dev container
+        if echo "$ORIGINAL_CMD" | grep -qE "docker ($DANGEROUS_DOCKER_OPS).*$DEV_CONTAINER"; then
+            cat >&2 <<EOF
+ERROR: Cannot modify the dev container '$DEV_CONTAINER'.
+
+Blocked command: $ORIGINAL_CMD
+
+The dev container is required for rwenv operations. Stopping, removing,
+or restarting it would break kubectl/helm/flux/gcloud command execution.
+
+If you need to restart the container, do so manually outside of Claude Code.
+EOF
+            exit 2
+        fi
+
+        # Also check for docker commands that affect all containers
+        if echo "$ORIGINAL_CMD" | grep -qE "docker (stop|rm|kill|restart|pause) -a|docker container prune|docker system prune"; then
+            cat >&2 <<EOF
+ERROR: Cannot run bulk container operations.
+
+Blocked command: $ORIGINAL_CMD
+
+This could affect the dev container '$DEV_CONTAINER' which is required
+for rwenv operations.
+
+Use specific container names instead of bulk operations.
+EOF
+            exit 2
+        fi
+    fi
+
+    # Allow other docker commands (like docker ps, docker logs, etc.)
+    exit 0
+fi
+
 # Check if this command should be handled by rwenv
 if ! echo "$BASE_CMD" | grep -qE "^($RWENV_COMMANDS)$"; then
-    # Not an rwenv command, pass through unchanged
-    echo "$ORIGINAL_CMD"
+    # Not an rwenv command, pass through unchanged (exit 0 with no output)
     exit 0
 fi
 
@@ -37,7 +90,7 @@ CWD="${PWD}"
 CURRENT_RWENV=$(get_current_rwenv "$CWD" 2>/dev/null) || true
 
 if [[ -z "$CURRENT_RWENV" ]]; then
-    # No rwenv set - output error message and exit with error
+    # No rwenv set - output error message and exit with code 2 to block
     cat >&2 <<EOF
 ERROR: No rwenv set for current directory.
 
@@ -58,13 +111,13 @@ EOF
 Use /rwenv-set <name> to select an environment for this directory.
 Use /rwenv-list to see all available environments.
 EOF
-    exit 1
+    exit 2  # Exit code 2 blocks command and shows stderr to Claude
 fi
 
 # Load rwenv configuration
 RWENV_CONFIG=$(get_rwenv_by_name "$CURRENT_RWENV") || {
     echo "ERROR: rwenv '$CURRENT_RWENV' not found in configuration." >&2
-    exit 1
+    exit 2
 }
 
 # Extract rwenv properties
@@ -79,7 +132,7 @@ DEV_CONTAINER=$(get_dev_container)
 if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${DEV_CONTAINER}$"; then
     echo "ERROR: Dev container '$DEV_CONTAINER' is not running." >&2
     echo "Start the container first, then retry the command." >&2
-    exit 1
+    exit 2
 fi
 
 # Extract command arguments (everything after the base command)
@@ -134,7 +187,7 @@ Read-only environments block:
 
 Use a non-read-only environment for write operations.
 EOF
-        exit 1
+        exit 2
     fi
 }
 
@@ -149,13 +202,14 @@ gcloud commands require a GKE environment with a configured GCP project.
 Current rwenv type: k3s
 Use a GKE rwenv for gcloud operations.
 EOF
-        exit 1
+        exit 2
     fi
 }
 
 # Build the transformed command based on the base command
 build_transformed_command() {
-    local docker_prefix="docker exec -it $DEV_CONTAINER"
+    # Note: Use -i only (not -it) since Claude Code runs non-interactively
+    local docker_prefix="docker exec -i $DEV_CONTAINER"
 
     case "$BASE_CMD" in
         kubectl)
@@ -184,7 +238,7 @@ Blocked operations include: create, delete, start, stop, reset, resize, patch, u
 
 Use the GCP Console or a dedicated deployment pipeline for write operations.
 EOF
-                exit 1
+                exit 2
             fi
             echo "$docker_prefix gcloud --project=$GCP_PROJECT $CMD_ARGS"
             ;;
@@ -203,5 +257,6 @@ EOF
 # Main execution
 TRANSFORMED_CMD=$(build_transformed_command)
 
-# Output the transformed command
-echo "$TRANSFORMED_CMD"
+# Output JSON with the modified tool_input
+# The hook must return JSON with the modified tool_input to change the command
+echo "$INPUT_JSON" | jq --arg cmd "$TRANSFORMED_CMD" '.tool_input.command = $cmd'

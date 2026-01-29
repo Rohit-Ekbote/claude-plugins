@@ -19,7 +19,7 @@ Look up service information including namespaces, Flux paths, and HelmRelease na
 
 ### For listing all services (`/services-mapping` or "list services")
 
-1. **Read the catalog** from the plugin's `data/services-catalog.json` file
+1. **Read the catalog** from the plugin's `data/infra-catalog.json` file
 
 2. **Display a formatted table:**
 
@@ -39,7 +39,7 @@ Use /services-mapping regenerate to rebuild from current cluster state.
 
 ### For single service lookup ("what namespace is X in", "where is X defined")
 
-1. **Read the catalog** from `data/services-catalog.json`
+1. **Read the catalog** from `data/infra-catalog.json`
 
 2. **Search for the service** by name (case-insensitive partial match)
 
@@ -78,17 +78,17 @@ Guide the user through regenerating the catalog:
 3. **Clone/pull the Flux repo** (if configured in rwenv)
 4. **Scan Flux repo** for HelmRelease/Kustomization YAML files
 5. **Correlate** cluster data with Flux repo structure
-6. **Write updated catalog** to `data/services-catalog.json`
+6. **Write updated catalog** to `data/infra-catalog.json`
 7. **Report** what was found and updated
 
 ## Data File Location
 
-The services catalog is at: `<plugin-directory>/data/services-catalog.json`
+The services catalog is at: `<plugin-directory>/data/infra-catalog.json`
 
 To find the plugin directory:
 1. This skill file is located at `<plugin-directory>/skills/services-mapping.md`
 2. Go up one level from `skills/` to get the plugin root
-3. The catalog is at `data/services-catalog.json` relative to plugin root
+3. The catalog is at `data/infra-catalog.json` relative to plugin root
 
 For programmatic access, check where this skill was loaded from and navigate accordingly.
 
@@ -97,10 +97,10 @@ For programmatic access, check where this skill was loaded from and navigate acc
 | Error | Response |
 |-------|----------|
 | Catalog file missing | "Services catalog not found. Run /services-mapping regenerate to create it." |
-| Catalog JSON invalid | "Services catalog has invalid JSON. Check data/services-catalog.json" |
+| Catalog JSON invalid | "Services catalog has invalid JSON. Check data/infra-catalog.json" |
 | No services in catalog | "Services catalog is empty. Run /services-mapping regenerate to populate it." |
 | rwenv not set (regeneration) | "No rwenv configured. Use /rwenv-set to select an environment before regenerating." |
 | kubectl command fails | "Failed to query cluster. Check rwenv configuration and dev container status." |
 | Flux repo not configured | "No fluxGitRepo configured for this rwenv. Add it to envs.json or skip Flux correlation." |
 | Flux repo clone/pull fails | "Failed to access Flux repo. Check URL and credentials. Proceeding with cluster data only." |
-| No write permission | "Cannot write to data/services-catalog.json. Check file permissions." |
+| No write permission | "Cannot write to data/infra-catalog.json. Check file permissions." |
