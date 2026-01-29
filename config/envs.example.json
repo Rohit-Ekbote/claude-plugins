@@ -1,29 +1,6 @@
 {
   "version": "1.0",
   "devContainer": "alpine-dev-container-zsh-rdebug",
-  "databases": {
-    "core": {
-      "namespace": "backend-services",
-      "secretName": "core-pguser-core",
-      "pgbouncerHost": "core-pgbouncer.backend-services.svc.cluster.local",
-      "database": "core",
-      "username": "core"
-    },
-    "usearch": {
-      "namespace": "backend-services",
-      "secretName": "core-pguser-usearch",
-      "pgbouncerHost": "core-pgbouncer.backend-services.svc.cluster.local",
-      "database": "usearch",
-      "username": "usearch"
-    },
-    "agentfarm": {
-      "namespace": "databases",
-      "secretName": "postgres-pguser-agentfarm",
-      "pgbouncerHost": "core-pgbouncer.backend-services.svc.cluster.local",
-      "database": "app_users",
-      "username": "agentfarm"
-    }
-  },
   "rwenvs": {
     "rdebug": {
       "description": "VM based dev setup (k3s)",
@@ -31,15 +8,7 @@
       "kubeconfigPath": "/root/.kube/config",
       "kubernetesContext": "rdebug-61",
       "readOnly": false,
-      "fluxGitRepo": "https://gitea.rdebug-61.local.runwhen.com/platform-setup/runwhen-platform-self-hosted-local-dev",
-      "services": {
-        "papi": "https://papi.rdebug-61.local.runwhen.com",
-        "app": "https://app.rdebug-61.local.runwhen.com",
-        "vault": "https://vault.rdebug-61.local.runwhen.com",
-        "gitea": "https://gitea.rdebug-61.local.runwhen.com",
-        "minio": "https://minio-console.rdebug-61.local.runwhen.com",
-        "agentfarm": "https://agentfarm.rdebug-61.local.runwhen.com"
-      }
+      "fluxGitRepo": "https://gitea.rdebug-61.local.runwhen.com/platform-setup/runwhen-platform-self-hosted-local-dev"
     },
     "gke-prod": {
       "description": "GKE production cluster",
@@ -48,10 +17,7 @@
       "kubernetesContext": "gke_project_region_cluster",
       "gcpProject": "my-gcp-project",
       "readOnly": true,
-      "fluxGitRepo": "https://github.com/org/flux-repo",
-      "services": {
-        "papi": "https://papi.prod.example.com"
-      }
+      "fluxGitRepo": "https://github.com/org/flux-repo"
     }
   }
 }

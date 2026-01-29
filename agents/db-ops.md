@@ -27,41 +27,44 @@ Before executing any operations:
    - Get `kubernetesContext`, `kubeconfigPath` settings
    - These are required to access Kubernetes secrets for credentials
 
-3. **Load database configuration** from `databases` section in envs.json
-   - Databases are shared across all rwenvs
+3. **Load database configuration** from `data/infra-catalog.json`
+   - Databases are defined in the plugin's infra catalog
    - Each database has: namespace, secretName, pgbouncerHost, database, username
 
 4. **Fetch credentials** from Kubernetes secret at runtime
    - Never store or cache passwords
    - Use kubeconfig/context from step 2 to access secrets
 
-## Safety: Always Read-Only
+## Safety Enforcement
 
-**Database operations are ALWAYS read-only** regardless of rwenv `readOnly` setting.
+Database operations are validated at multiple levels.
 
-### Blocked Operations
+### Always Blocked (any rwenv)
 
-The following SQL operations are **always blocked**:
+DDL and dangerous operations are **always blocked**:
 
 ```sql
--- Data Modification
-INSERT, UPDATE, DELETE, MERGE, UPSERT
-
--- Schema Modification
+-- Schema Modification (DDL)
 CREATE, ALTER, DROP, TRUNCATE, RENAME
 
 -- Permission Changes
 GRANT, REVOKE
-
--- Transaction Control (for writes)
-COMMIT (after write), ROLLBACK (after write)
 
 -- Dangerous Operations
 VACUUM FULL, REINDEX, CLUSTER
 COPY ... TO (file writes)
 ```
 
-### Allowed Operations
+### Blocked When readOnly=true
+
+DML operations are blocked when rwenv has `readOnly: true`:
+
+```sql
+-- Data Modification (DML)
+INSERT, UPDATE, DELETE, MERGE, UPSERT
+```
+
+### Always Allowed
 
 ```sql
 -- Read Queries
@@ -75,18 +78,19 @@ EXPLAIN, EXPLAIN ANALYZE
 information_schema queries
 pg_catalog queries
 
--- Safe Maintenance (read-only)
+-- Safe Maintenance
 ANALYZE (statistics only, no VACUUM)
 ```
 
 ## Available Databases
 
-Databases are configured in the `databases` section of envs.json:
+Databases are configured in `data/infra-catalog.json`:
 
 ```json
 {
   "databases": {
     "core": {
+      "description": "Core application database",
       "namespace": "backend-services",
       "secretName": "core-pguser-core",
       "pgbouncerHost": "core-pgbouncer.backend-services.svc.cluster.local",

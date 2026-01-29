@@ -41,5 +41,31 @@
       "podSelector": "app=agentfarm",
       "internalPort": 8000
     }
+  },
+  "databases": {
+    "core": {
+      "description": "Core application database",
+      "namespace": "backend-services",
+      "secretName": "core-pguser-core",
+      "pgbouncerHost": "core-pgbouncer.backend-services.svc.cluster.local",
+      "database": "core",
+      "username": "core"
+    },
+    "usearch": {
+      "description": "Search database",
+      "namespace": "backend-services",
+      "secretName": "core-pguser-usearch",
+      "pgbouncerHost": "core-pgbouncer.backend-services.svc.cluster.local",
+      "database": "usearch",
+      "username": "usearch"
+    },
+    "agentfarm": {
+      "description": "Agent Farm database",
+      "namespace": "databases",
+      "secretName": "postgres-pguser-agentfarm",
+      "pgbouncerHost": "core-pgbouncer.backend-services.svc.cluster.local",
+      "database": "app_users",
+      "username": "agentfarm"
+    }
   }
 }

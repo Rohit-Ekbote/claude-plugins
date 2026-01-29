@@ -25,7 +25,7 @@ Before executing any operations:
 2. **Load rwenv configuration** from `${RWENV_CONFIG_DIR:-~/.claude/rwenv}/envs.json`
    - Get `kubernetesContext`, `kubeconfigPath`, `readOnly` settings
 
-3. **Load services catalog** from plugin's `data/services-catalog.json`
+3. **Load services catalog** from plugin's `data/infra-catalog.json`
    - Use for service → namespace lookups (e.g., "papi" → namespace: runwhen-local)
    - If catalog missing, warn but continue (can specify namespace manually)
 
@@ -115,7 +115,7 @@ When `readOnly: true` in rwenv config:
 
 ## Accessing Service Endpoints
 
-Services are defined in `data/services-catalog.json` with connection info. The access method depends on whether the service is exposed externally.
+Services are defined in `data/infra-catalog.json` with connection info. The access method depends on whether the service is exposed externally.
 
 ### Check Service Info
 
@@ -233,7 +233,7 @@ flux get kustomization <name> -n flux-system --watch
 
 ## Service Context Integration
 
-When a service name is mentioned, look it up in `data/services-catalog.json`:
+When a service name is mentioned, look it up in `data/infra-catalog.json`:
 
 1. **Get service info** - namespace, podSelector, exposed flag, address
 2. **For kubectl operations** - use namespace and podSelector

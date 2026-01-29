@@ -91,13 +91,27 @@ get_rwenv_by_name() {
     echo "$envs" | jq -e --arg name "$name" '.rwenvs[$name]' 2>/dev/null
 }
 
-# Get database config by name
+# Load infra-catalog.json content
+load_infra_catalog() {
+    local plugin_dir catalog_file
+    plugin_dir="$(get_plugin_dir)"
+    catalog_file="$plugin_dir/data/infra-catalog.json"
+
+    if [[ ! -f "$catalog_file" ]]; then
+        echo '{"version":"1.0","services":{},"databases":{}}' >&2
+        return 1
+    fi
+
+    cat "$catalog_file"
+}
+
+# Get database config by name (from infra-catalog.json)
 get_database_by_name() {
     local name="$1"
-    local envs
-    envs="$(load_envs)"
+    local catalog
+    catalog="$(load_infra_catalog)" || return 1
 
-    echo "$envs" | jq -e --arg name "$name" '.databases[$name]' 2>/dev/null
+    echo "$catalog" | jq -e --arg name "$name" '.databases[$name]' 2>/dev/null
 }
 
 # List all rwenv names
@@ -107,11 +121,11 @@ list_rwenv_names() {
     echo "$envs" | jq -r '.rwenvs | keys[]'
 }
 
-# List all database names
+# List all database names (from infra-catalog.json)
 list_database_names() {
-    local envs
-    envs="$(load_envs)"
-    echo "$envs" | jq -r '.databases | keys[]'
+    local catalog
+    catalog="$(load_infra_catalog)" || return 1
+    echo "$catalog" | jq -r '.databases | keys[]'
 }
 
 # Check if rwenv is read-only
@@ -501,7 +515,7 @@ get_plugin_dir() {
     echo "${RWENV_PLUGIN_DIR:-$HOME/.claude/plugins/cache/Rohit-Ekbote-rwenv/rwenv}"
 }
 
-# Get service connection info from catalog
+# Get service connection info from infra catalog
 # Usage: get_service_info <service_name>
 # Returns JSON with resolved address (rwenv-name replaced)
 get_service_info() {
@@ -512,22 +526,19 @@ get_service_info() {
         return 1
     }
 
-    # Get services catalog file
-    local plugin_dir catalog_file
-    plugin_dir="$(get_plugin_dir)"
-    catalog_file="$plugin_dir/data/services-catalog.json"
-
-    if [[ ! -f "$catalog_file" ]]; then
-        echo "ERROR: Services catalog not found at $catalog_file" >&2
+    # Load infra catalog
+    local catalog
+    catalog="$(load_infra_catalog)" || {
+        echo "ERROR: Infra catalog not found" >&2
         return 1
-    fi
+    }
 
     # Get service entry
     local service
-    service=$(jq -e --arg name "$service_name" '.services[$name]' "$catalog_file" 2>/dev/null) || {
+    service=$(echo "$catalog" | jq -e --arg name "$service_name" '.services[$name]' 2>/dev/null) || {
         echo "ERROR: Service '$service_name' not found in catalog" >&2
         echo "Available services:" >&2
-        jq -r '.services | keys[]' "$catalog_file" >&2
+        echo "$catalog" | jq -r '.services | keys[]' >&2
         return 1
     }
 
@@ -539,16 +550,13 @@ get_service_info() {
     echo "$service" | jq --arg addr "$address" '. + {resolvedAddress: $addr}'
 }
 
-# List all services in catalog
+# List all services in infra catalog
 list_services() {
-    local plugin_dir catalog_file
-    plugin_dir="$(get_plugin_dir)"
-    catalog_file="$plugin_dir/data/services-catalog.json"
-
-    if [[ ! -f "$catalog_file" ]]; then
-        echo "ERROR: Services catalog not found" >&2
+    local catalog
+    catalog="$(load_infra_catalog)" || {
+        echo "ERROR: Infra catalog not found" >&2
         return 1
-    fi
+    }
 
-    jq -r '.services | to_entries[] | "\(.key): \(.value.description) [exposed=\(.value.exposed)]"' "$catalog_file"
+    echo "$catalog" | jq -r '.services | to_entries[] | "\(.key): \(.value.description) [exposed=\(.value.exposed)]"'
 }
