@@ -254,6 +254,103 @@ is_gcloud_write_operation() {
     echo "$cmd" | grep -qiE "$write_patterns"
 }
 
+# Validate database query based on rwenv settings
+# Returns 0 if allowed, returns 1 with error message if blocked
+validate_db_query() {
+    local query="$1"
+    local rwenv_name="$2"
+    local query_upper
+    query_upper=$(echo "$query" | tr '[:lower:]' '[:upper:]')
+
+    # DDL patterns - ALWAYS blocked regardless of rwenv
+    local ddl_patterns="CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|VACUUM|REINDEX|CLUSTER"
+
+    # DML patterns - blocked only if readOnly=true
+    local dml_patterns="INSERT|UPDATE|DELETE|MERGE|UPSERT"
+
+    # Check DDL (always blocked)
+    if echo "$query_upper" | grep -qE "(^|[^A-Z])($ddl_patterns)([^A-Z]|$)"; then
+        echo "ERROR: DDL operation blocked. Schema modifications are never allowed." >&2
+        echo "Blocked query: $query" >&2
+        return 1
+    fi
+
+    # Check COPY TO (always blocked - file writes)
+    if echo "$query_upper" | grep -qE "COPY.*TO"; then
+        echo "ERROR: COPY TO operation blocked. File writes are not allowed." >&2
+        return 1
+    fi
+
+    # Check DML only if readOnly
+    if is_readonly "$rwenv_name"; then
+        if echo "$query_upper" | grep -qE "(^|[^A-Z])($dml_patterns)([^A-Z]|$)"; then
+            echo "ERROR: Write operation blocked. Environment '$rwenv_name' is read-only." >&2
+            echo "Blocked query: $query" >&2
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
+# Build psql command using port-forward approach
+# Usage: build_psql_cmd <rwenv_name> <database_name> <query> [local_port]
+# Outputs executable commands to stdout
+build_psql_cmd() {
+    local rwenv_name="$1"
+    local db_name="$2"
+    local query="$3"
+    local local_port="${4:-3105}"  # Use 3105 - already exposed by dev container
+
+    # Validate query first
+    validate_db_query "$query" "$rwenv_name" || return 1
+
+    # Get database config
+    local db_config
+    db_config=$(get_database_by_name "$db_name") || {
+        echo "ERROR: Database '$db_name' not found" >&2
+        return 1
+    }
+
+    # Parse config
+    local namespace secret_name pgbouncer_host database username
+    namespace=$(echo "$db_config" | jq -r '.namespace')
+    secret_name=$(echo "$db_config" | jq -r '.secretName')
+    pgbouncer_host=$(echo "$db_config" | jq -r '.pgbouncerHost')
+    database=$(echo "$db_config" | jq -r '.database')
+    username=$(echo "$db_config" | jq -r '.username')
+
+    # Extract service name from pgbouncer host (e.g., core-pgbouncer.backend-services.svc.cluster.local -> core-pgbouncer)
+    local pgbouncer_svc
+    pgbouncer_svc=$(echo "$pgbouncer_host" | cut -d'.' -f1)
+
+    # Get rwenv settings
+    local kubeconfig context container
+    kubeconfig=$(get_kubeconfig_path "$rwenv_name")
+    context=$(get_kubernetes_context "$rwenv_name")
+    container=$(get_dev_container)
+
+    # Build the command sequence
+    cat <<EOF
+# 1. Get password
+PASSWORD=\$(docker exec $container kubectl --kubeconfig=$kubeconfig --context=$context get secret $secret_name -n $namespace -o jsonpath='{.data.password}' | base64 -d)
+
+# 2. Port-forward (background, bind to 0.0.0.0 for host access)
+docker exec $container kubectl --kubeconfig=$kubeconfig --context=$context port-forward --address 0.0.0.0 svc/$pgbouncer_svc $local_port:5432 -n $namespace &
+PF_PID=\$!
+sleep 2
+
+# 3. Execute query (can run from host or container)
+# From container:
+docker exec $container sh -c "PGPASSWORD='\$PASSWORD' psql -h 127.0.0.1 -p $local_port -U $username -d $database -c '$query'"
+# Or from host (if psql installed):
+# PGPASSWORD="\$PASSWORD" psql -h localhost -p $local_port -U $username -d $database -c '$query'
+
+# 4. Cleanup
+kill \$PF_PID 2>/dev/null
+EOF
+}
+
 # Set rwenv for a directory
 set_rwenv_for_dir() {
     local dir="$1"

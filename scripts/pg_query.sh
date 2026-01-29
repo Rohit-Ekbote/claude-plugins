@@ -77,47 +77,15 @@ EOF
     exit 0
 }
 
-# Validate query is read-only
+# Validate query using shared validation function
 validate_readonly_query() {
     local query="$1"
-    local query_upper
-    query_upper=$(echo "$query" | tr '[:lower:]' '[:upper:]')
+    local rwenv_name="$2"
 
-    # Patterns that indicate write operations
-    local write_patterns=(
-        "INSERT"
-        "UPDATE"
-        "DELETE"
-        "DROP"
-        "CREATE"
-        "ALTER"
-        "TRUNCATE"
-        "GRANT"
-        "REVOKE"
-        "MERGE"
-        "UPSERT"
-        "VACUUM"
-        "REINDEX"
-        "CLUSTER"
-    )
-
-    for pattern in "${write_patterns[@]}"; do
-        # Check if pattern appears as a word (not part of another word)
-        if echo "$query_upper" | grep -qE "(^|[^A-Z])${pattern}([^A-Z]|$)"; then
-            error "Write operation detected: '$pattern'. Database access is read-only.
-
-Blocked query: $query
-
-Only SELECT, EXPLAIN, and metadata queries are allowed."
-        fi
-    done
-
-    # Check for COPY TO (file writes)
-    if echo "$query_upper" | grep -qE "COPY.*TO"; then
-        error "COPY TO operation detected. Database access is read-only."
-    fi
-
-    return 0
+    # Use shared validation from rwenv-utils.sh
+    validate_db_query "$query" "$rwenv_name" || {
+        error "Query validation failed. Only SELECT, EXPLAIN, and metadata queries are allowed."
+    }
 }
 
 # Fetch password from Kubernetes secret
@@ -126,14 +94,14 @@ fetch_password() {
     local secret_name="$2"
     local rwenv_name="$3"
 
-    local kubeconfig context docker_prefix
+    local kubeconfig context container
     kubeconfig="$(get_kubeconfig_path "$rwenv_name")"
     context="$(get_kubernetes_context "$rwenv_name")"
-    docker_prefix="$(build_docker_exec_prefix)"
+    container="$(get_dev_container)"
 
     # Fetch the password from the secret
     local password
-    password=$($docker_prefix kubectl \
+    password=$(docker exec "$container" kubectl \
         --kubeconfig="$kubeconfig" \
         --context="$context" \
         get secret "$secret_name" -n "$namespace" \
@@ -145,78 +113,53 @@ fetch_password() {
     echo "$password" | base64 -d
 }
 
-# Find a pod that can run psql
-find_psql_pod() {
-    local namespace="$1"
-    local rwenv_name="$2"
-
-    local kubeconfig context docker_prefix
-    kubeconfig="$(get_kubeconfig_path "$rwenv_name")"
-    context="$(get_kubernetes_context "$rwenv_name")"
-    docker_prefix="$(build_docker_exec_prefix)"
-
-    # Try to find a postgres-related pod in the namespace
-    local pod
-    pod=$($docker_prefix kubectl \
-        --kubeconfig="$kubeconfig" \
-        --context="$context" \
-        get pods -n "$namespace" \
-        -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' \
-        2>/dev/null | tr ' ' '\n' | grep -E '(postgres|pg|psql)' | head -1) || true
-
-    if [[ -z "$pod" ]]; then
-        # Fallback: try to find any running pod in the namespace
-        pod=$($docker_prefix kubectl \
-            --kubeconfig="$kubeconfig" \
-            --context="$context" \
-            get pods -n "$namespace" \
-            -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' \
-            2>/dev/null | tr ' ' '\n' | head -1) || true
-    fi
-
-    echo "$pod"
-}
-
-# Execute query via kubectl exec
+# Execute query via port-forward
 execute_query() {
     local db_config="$1"
     local query="$2"
     local format="$3"
     local timeout="$4"
     local rwenv_name="$5"
+    local local_port=3105  # Use port already exposed by dev container
 
     # Parse database config
-    local namespace pgbouncer_host database username
+    local namespace secret_name pgbouncer_host database username
     namespace=$(echo "$db_config" | jq -r '.namespace')
     secret_name=$(echo "$db_config" | jq -r '.secretName')
     pgbouncer_host=$(echo "$db_config" | jq -r '.pgbouncerHost')
     database=$(echo "$db_config" | jq -r '.database')
     username=$(echo "$db_config" | jq -r '.username')
 
+    # Extract service name from pgbouncer host
+    local pgbouncer_svc
+    pgbouncer_svc=$(echo "$pgbouncer_host" | cut -d'.' -f1)
+
     # Fetch password
     info "Fetching credentials from secret '$secret_name'..."
     local password
     password=$(fetch_password "$namespace" "$secret_name" "$rwenv_name")
 
-    # Build connection string
-    local conn_string="postgresql://${username}:${password}@${pgbouncer_host}/${database}"
-
     # Get kubectl settings
-    local kubeconfig context docker_prefix
+    local kubeconfig context container
     kubeconfig="$(get_kubeconfig_path "$rwenv_name")"
     context="$(get_kubernetes_context "$rwenv_name")"
-    docker_prefix="$(build_docker_exec_prefix)"
+    container="$(get_dev_container)"
 
-    # Find a pod to execute from
-    info "Finding pod to execute query..."
-    local pod
-    pod=$(find_psql_pod "$namespace" "$rwenv_name")
+    # Start port-forward in background
+    info "Starting port-forward on port $local_port..."
+    docker exec "$container" kubectl \
+        --kubeconfig="$kubeconfig" \
+        --context="$context" \
+        port-forward --address 0.0.0.0 "svc/$pgbouncer_svc" "$local_port:5432" -n "$namespace" &
+    local pf_pid=$!
 
-    if [[ -z "$pod" ]]; then
-        error "No suitable pod found in namespace '$namespace' to execute psql"
+    # Wait for port-forward to establish
+    sleep 2
+
+    # Verify port-forward is running
+    if ! kill -0 "$pf_pid" 2>/dev/null; then
+        error "Port-forward failed to start. Check if service '$pgbouncer_svc' exists in namespace '$namespace'."
     fi
-
-    info "Using pod: $pod"
 
     # Build psql options based on format
     local psql_opts=""
@@ -236,11 +179,15 @@ execute_query() {
 
     # Execute query
     info "Executing query..."
-    $docker_prefix kubectl \
-        --kubeconfig="$kubeconfig" \
-        --context="$context" \
-        exec -i "$pod" -n "$namespace" -- \
-        timeout "$timeout" psql "$conn_string" $psql_opts -c "$query"
+    local result=0
+    docker exec "$container" sh -c \
+        "PGPASSWORD='$password' timeout $timeout psql -h 127.0.0.1 -p $local_port -U $username -d $database $psql_opts -c \"$query\"" || result=$?
+
+    # Cleanup port-forward
+    info "Cleaning up port-forward..."
+    kill "$pf_pid" 2>/dev/null || true
+
+    return $result
 }
 
 # Main
@@ -320,8 +267,8 @@ Use /rwenv-list to see available environments."
         exit 1
     }
 
-    # Validate query is read-only
-    validate_readonly_query "$query"
+    # Validate query based on rwenv settings
+    validate_readonly_query "$query" "$rwenv_name"
 
     # Execute query
     execute_query "$db_config" "$query" "$format" "$timeout" "$rwenv_name"

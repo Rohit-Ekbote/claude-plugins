@@ -101,40 +101,57 @@ Databases are configured in the `databases` section of envs.json:
 
 ## Command Execution Pattern
 
-All database queries execute through this flow:
+**Always use port-forward approach via `pg_query.sh` script.**
 
-1. **Get database config** from envs.json
-2. **Fetch password** from Kubernetes secret using active rwenv context
-3. **Execute query** via kubectl exec to a pod with psql, or port-forward + local psql
+### Recommended Method: pg_query.sh Script
 
-### Credential Fetch Pattern
+Use the provided script which handles validation, port-forward, and cleanup:
 
 ```bash
-# Fetch password from K8s secret
-docker exec -it <devContainer> kubectl \
-  --kubeconfig=<kubeconfigPath> \
-  --context=<kubernetesContext> \
-  get secret <secretName> -n <namespace> \
-  -o jsonpath='{.data.password}' | base64 -d
+# From the plugin directory
+./scripts/pg_query.sh <database_name> "<query>"
+
+# Examples
+./scripts/pg_query.sh core "SELECT * FROM users LIMIT 10"
+./scripts/pg_query.sh core "\\dt" --format=table
+./scripts/pg_query.sh usearch "SELECT COUNT(*) FROM documents" --format=json
 ```
 
-### Query Execution Pattern
+### Manual Method (If Needed)
+
+Step-by-step port-forward approach:
 
 ```bash
-# Option 1: Via kubectl exec to a pod with psql
-docker exec -it <devContainer> kubectl \
-  --kubeconfig=<kubeconfigPath> \
-  --context=<kubernetesContext> \
-  exec -it <psql-pod> -n <namespace> -- \
-  psql "postgresql://<username>:<password>@<pgbouncerHost>/<database>" \
-  -c "<query>"
+# 1. Get password from K8s secret
+PASSWORD=$(docker exec <container> kubectl --kubeconfig=<path> --context=<ctx> \
+  get secret <secretName> -n <namespace> -o jsonpath='{.data.password}' | base64 -d)
 
-# Option 2: Via port-forward (for interactive sessions)
-docker exec -it <devContainer> kubectl \
-  --kubeconfig=<kubeconfigPath> \
-  --context=<kubernetesContext> \
-  port-forward svc/<pgbouncer-svc> 5432:5432 -n <namespace>
+# 2. Port-forward (binds to 0.0.0.0:3105, accessible from host)
+docker exec <container> kubectl --kubeconfig=<path> --context=<ctx> \
+  port-forward --address 0.0.0.0 svc/<pgbouncer-svc> 3105:5432 -n <namespace> &
+
+# 3. Wait for port-forward to establish
+sleep 2
+
+# 4. Run query (from container)
+docker exec <container> sh -c "PGPASSWORD='$PASSWORD' psql -h 127.0.0.1 -p 3105 -U <user> -d <db> -c '<query>'"
+
+# Or from host (if psql installed):
+# PGPASSWORD="$PASSWORD" psql -h localhost -p 3105 -U <user> -d <db> -c '<query>'
+
+# 5. Cleanup
+pkill -f "port-forward.*<pgbouncer-svc>"
 ```
+
+### Safety Enforcement
+
+Queries are validated at multiple levels (helper function AND script):
+
+| Query Type | Any rwenv | readOnly=true |
+|------------|-----------|---------------|
+| **DDL** (CREATE, ALTER, DROP, TRUNCATE, GRANT, REVOKE) | BLOCKED | BLOCKED |
+| **DML** (INSERT, UPDATE, DELETE) | ALLOWED | BLOCKED |
+| **SELECT, EXPLAIN, \\d commands** | ALLOWED | ALLOWED |
 
 ## Capabilities
 
