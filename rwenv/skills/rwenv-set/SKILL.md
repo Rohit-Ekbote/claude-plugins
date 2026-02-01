@@ -1,6 +1,6 @@
 ---
 name: rwenv-set
-description: Set the active rwenv environment for the current directory
+description: Set the active rwenv environment for the current project (stored locally in .claude/rwenv)
 triggers:
   - /rwenv-set
   - switch to
@@ -15,7 +15,7 @@ args:
 
 # Set RunWhen Environment
 
-Select an rwenv environment to use for the current working directory.
+Select an rwenv environment to use for the current project directory. The selection is stored locally in `.claude/rwenv` within the project (auto-gitignored).
 
 ## Instructions
 
@@ -31,11 +31,11 @@ Select an rwenv environment to use for the current working directory.
 
 ### Step 2: Check for existing mapping
 
-Read `env-consumers.json` to see if current directory already has an rwenv set.
+Read `.claude/rwenv` in the current project directory to see if an rwenv is already set.
 
 **If same rwenv is already set**:
 ```
-rwenv 'rdebug' is already active for this directory.
+rwenv 'rdebug' is already active for this project.
 
 Use /rwenv-cur to see full details.
 ```
@@ -54,15 +54,23 @@ Use AskUserQuestion with options:
 
 ### Step 3: Update the mapping
 
-1. Read `${RWENV_CONFIG_DIR:-~/.claude/rwenv}/env-consumers.json`
-2. Add/update entry: `"<current_directory>": "<rwenv_name>"`
-3. Write the updated JSON back to the file
-4. Create the file if it doesn't exist
+Use `set_rwenv_for_dir()` from `rwenv-utils.sh`:
+
+1. Creates `.claude/` directory in the project if needed
+2. Writes rwenv name to `.claude/rwenv`
+3. Auto-adds `.claude/rwenv` to `.gitignore` (if git repo)
+
+**Implementation:**
+```bash
+source "$RWENV_PLUGIN_DIR/lib/rwenv-utils.sh"
+set_rwenv_for_dir "$PWD" "<rwenv_name>"
+```
 
 ### Step 4: Display confirmation
 
 ```
-rwenv set to 'rdebug' for /Users/rohitekbote/wd/myproject
+rwenv set to 'rdebug' for this project
+Stored in: /Users/rohitekbote/wd/myproject/.claude/rwenv (auto-gitignored)
 
 Environment Details:
   Type:        k3s
@@ -109,11 +117,11 @@ Please set up rwenv first:
 3. Edit with your environment details
 ```
 
-**Permission error writing to env-consumers.json:**
+**Permission error writing to project .claude directory:**
 ```
-ERROR: Cannot write to ~/.claude/rwenv/env-consumers.json
+ERROR: Cannot write to <project>/.claude/rwenv
 
-Check file permissions and try again.
+Check directory permissions and try again.
 ```
 
 ## Natural Language Handling
