@@ -86,32 +86,36 @@ fi
 # Get current working directory
 CWD="${PWD}"
 
-# Check if rwenv is set for current directory
-CURRENT_RWENV=$(get_current_rwenv "$CWD" 2>/dev/null) || true
+# Function to display no-rwenv error and exit
+show_no_rwenv_error() {
+    cat >&2 <<'EOF'
+ERROR: No rwenv configured for this project.
 
-if [[ -z "$CURRENT_RWENV" ]]; then
-    # No rwenv set - output error message and exit with code 2 to block
-    cat >&2 <<EOF
-ERROR: No rwenv set for current directory.
-
-Current directory: $CWD
+Run: /rwenv-set <environment>
 
 Available environments:
 EOF
 
-    # List available rwenvs
+    # List available rwenvs with name and description
     if envs=$(load_envs 2>/dev/null); then
-        echo "$envs" | jq -r '.rwenvs | to_entries[] | "  - \(.key) (\(.value.type), \(.value.description))"' >&2
+        echo "$envs" | jq -r '.rwenvs | to_entries[] | "  \(.key) - \(.value.description) (\(.value.type))"' >&2
     else
         echo "  (none configured)" >&2
     fi
 
-    cat >&2 <<EOF
-
-Use /rwenv-set <name> to select an environment for this directory.
-Use /rwenv-list to see all available environments.
-EOF
+    echo >&2  # Empty line after environment list
     exit 2  # Exit code 2 blocks command and shows stderr to Claude
+}
+
+# Check if rwenv is set for current directory
+# get_current_rwenv returns exit 1 if .claude/rwenv file doesn't exist
+if ! CURRENT_RWENV=$(get_current_rwenv "$CWD" 2>/dev/null); then
+    show_no_rwenv_error
+fi
+
+# Also handle case where file exists but is empty
+if [[ -z "$CURRENT_RWENV" ]]; then
+    show_no_rwenv_error
 fi
 
 # Load rwenv configuration
