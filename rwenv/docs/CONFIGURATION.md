@@ -71,6 +71,7 @@ Each key is an environment name, value is the environment config:
 | `gcpProject` | string | GKE only | GCP project ID (required for gke type) |
 | `readOnly` | boolean | No | Block write operations (default: false) |
 | `fluxGitRepo` | string | No | FluxCD git repository URL |
+| `fluxGitRepoType` | string | No | Flux repo hosting type: `"gitea"` or `"github"` |
 | `services` | object | No | Service name to URL mappings |
 
 ### rwenv Example (k3s)
@@ -84,6 +85,7 @@ Each key is an environment name, value is the environment config:
     "kubernetesContext": "k3s-local",
     "readOnly": false,
     "fluxGitRepo": "https://gitea.local/org/flux-dev",
+    "fluxGitRepoType": "gitea",
     "services": {
       "papi": "https://papi.dev.local",
       "app": "https://app.dev.local",
@@ -105,6 +107,7 @@ Each key is an environment name, value is the environment config:
     "gcpProject": "myproject-prod",
     "readOnly": true,
     "fluxGitRepo": "https://github.com/org/flux-prod",
+    "fluxGitRepoType": "github",
     "services": {
       "papi": "https://papi.prod.example.com",
       "app": "https://app.prod.example.com"
@@ -223,6 +226,7 @@ If a directory is not explicitly mapped, the plugin checks parent directories. T
       "kubernetesContext": "rdebug-61",
       "readOnly": false,
       "fluxGitRepo": "https://gitea.rdebug-61.local.runwhen.com/platform-setup/runwhen-platform-self-hosted-local-dev",
+      "fluxGitRepoType": "gitea",
       "services": {
         "papi": "https://papi.rdebug-61.local.runwhen.com",
         "app": "https://app.rdebug-61.local.runwhen.com",
@@ -240,6 +244,7 @@ If a directory is not explicitly mapped, the plugin checks parent directories. T
       "gcpProject": "myproject-staging",
       "readOnly": false,
       "fluxGitRepo": "https://github.com/org/flux-staging",
+      "fluxGitRepoType": "github",
       "services": {
         "papi": "https://papi.staging.example.com"
       }
@@ -252,6 +257,7 @@ If a directory is not explicitly mapped, the plugin checks parent directories. T
       "gcpProject": "myproject-prod",
       "readOnly": true,
       "fluxGitRepo": "https://github.com/org/flux-prod",
+      "fluxGitRepoType": "github",
       "services": {
         "papi": "https://papi.prod.example.com"
       }

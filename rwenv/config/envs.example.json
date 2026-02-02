@@ -9,7 +9,8 @@
       "kubeconfigPath": "/root/.kube/config",
       "kubernetesContext": "rdebug-61",
       "readOnly": false,
-      "fluxGitRepo": "https://gitea.rdebug-61.local.runwhen.com/platform-setup/runwhen-platform-self-hosted-local-dev"
+      "fluxGitRepo": "https://gitea.rdebug-61.local.runwhen.com/platform-setup/runwhen-platform-self-hosted-local-dev",
+      "fluxGitRepoType": "gitea"
     },
     "gke-prod": {
       "description": "GKE production cluster",
@@ -18,7 +19,8 @@
       "kubernetesContext": "gke_project_region_cluster",
       "gcpProject": "my-gcp-project",
       "readOnly": true,
-      "fluxGitRepo": "https://github.com/org/flux-repo"
+      "fluxGitRepo": "https://github.com/org/flux-repo",
+      "fluxGitRepoType": "github"
     }
   }
 }
