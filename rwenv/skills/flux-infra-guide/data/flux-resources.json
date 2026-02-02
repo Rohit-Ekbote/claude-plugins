@@ -1,0 +1,137 @@
+{
+  "kustomizations": {
+    "infrastructure": {
+      "namespace": "flux-system",
+      "path": "./infrastructure",
+      "sourceRef": "flux-system",
+      "dependsOn": [],
+      "interval": "1m",
+      "prune": true
+    },
+    "runwhen-backend-services": {
+      "namespace": "flux-system",
+      "path": "./apps/backend-services",
+      "sourceRef": "flux-system",
+      "dependsOn": [],
+      "interval": "1m",
+      "prune": true,
+      "substituteFrom": "cluster-vars"
+    },
+    "runwhen-corestate": {
+      "namespace": "flux-system",
+      "path": "./apps/corestate",
+      "sourceRef": "flux-system",
+      "dependsOn": [],
+      "interval": "1m",
+      "prune": true
+    },
+    "runwhen-gitservice": {
+      "namespace": "flux-system",
+      "path": "./apps/gitservice",
+      "sourceRef": "flux-system",
+      "dependsOn": [],
+      "interval": "1m",
+      "prune": true
+    },
+    "runwhen-llm-gateway": {
+      "namespace": "flux-system",
+      "path": "./apps/llm-gateway",
+      "sourceRef": "flux-system",
+      "dependsOn": [],
+      "interval": "1m",
+      "prune": true
+    },
+    "runwhen-runner-system": {
+      "namespace": "flux-system",
+      "path": "./apps/runner-system",
+      "sourceRef": "flux-system",
+      "dependsOn": [],
+      "interval": "1m",
+      "prune": true
+    },
+    "loki": {
+      "namespace": "flux-system",
+      "path": "./infrastructure/loki",
+      "sourceRef": "flux-system",
+      "dependsOn": [],
+      "interval": "1m",
+      "prune": true
+    },
+    "mimir": {
+      "namespace": "flux-system",
+      "path": "./infrastructure/mimir",
+      "sourceRef": "flux-system",
+      "dependsOn": [],
+      "interval": "1m",
+      "prune": true
+    },
+    "cortex": {
+      "namespace": "flux-system",
+      "path": "./infrastructure/cortex",
+      "sourceRef": "flux-system",
+      "dependsOn": [],
+      "interval": "1m",
+      "prune": true
+    },
+    "vault": {
+      "namespace": "flux-system",
+      "path": "./infrastructure/vault",
+      "sourceRef": "flux-system",
+      "dependsOn": [],
+      "interval": "1m",
+      "prune": true
+    },
+    "linkerd": {
+      "namespace": "flux-system",
+      "path": "./infrastructure/linkerd",
+      "sourceRef": "flux-system",
+      "dependsOn": [],
+      "interval": "1m",
+      "prune": true
+    },
+    "grafana-alloy": {
+      "namespace": "flux-system",
+      "path": "./infrastructure/grafana-alloy",
+      "sourceRef": "flux-system",
+      "dependsOn": [],
+      "interval": "1m",
+      "prune": true
+    }
+  },
+  "helmReleases": {
+    "loki": {
+      "namespace": "loki",
+      "chart": "loki",
+      "chartSource": "grafana",
+      "interval": "5m"
+    },
+    "mimir": {
+      "namespace": "mimir",
+      "chart": "mimir-distributed",
+      "chartSource": "grafana",
+      "interval": "5m"
+    },
+    "redis-sentinel": {
+      "namespace": "backend-services",
+      "chart": "redis",
+      "chartSource": "bitnami",
+      "interval": "5m"
+    },
+    "neo4j": {
+      "namespace": "backend-services",
+      "chart": "neo4j",
+      "chartSource": "neo4j",
+      "interval": "5m"
+    },
+    "qdrant": {
+      "namespace": "backend-services",
+      "chart": "qdrant",
+      "chartSource": "qdrant",
+      "interval": "5m"
+    }
+  },
+  "metadata": {
+    "generatedFrom": "infra-flux-nonprod-test",
+    "generatedAt": "2026-02-02T00:00:00Z"
+  }
+}
