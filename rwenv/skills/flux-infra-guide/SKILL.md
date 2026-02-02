@@ -459,3 +459,98 @@ Alert Rules (GCS bucket)
 | `infrastructure/loki/helm.yaml` | Log retention, GCS bucket |
 | `infrastructure/cortex/helm-cortex.yaml` | App metrics, alerting config |
 | `infrastructure/opencost/helm.yaml` | Cost model, pricing rates |
+
+---
+
+## Dependencies
+
+Service startup order and inter-service dependencies.
+
+### Flux Dependency Chain
+
+Kustomizations have explicit `dependsOn` declarations. Check these when something isn't deploying.
+
+```
+infrastructure (base)
+    │
+    ├──► vault
+    │
+    ├──► linkerd
+    │
+    ├──► loki
+    │
+    ├──► mimir
+    │
+    └──► cortex
+         │
+         └──► runwhen-backend-services
+                   │
+                   ├──► runwhen-corestate
+                   ├──► runwhen-gitservice
+                   ├──► runwhen-llm-gateway
+                   └──► runwhen-runner-system
+```
+
+### Service Dependencies
+
+| Service | Depends On | Failure Impact |
+|---------|------------|----------------|
+| **papi** | PostgreSQL, Redis, Vault, Neo4j | Core API unavailable |
+| **celery-worker** | papi, Redis, PostgreSQL | Async tasks fail |
+| **celery-beat** | Redis | Scheduled tasks stop |
+| **gitservice** | GitLab, Vault | Git operations fail |
+| **llm-gateway** | External LLM APIs | AI features unavailable |
+| **corestate** | PostgreSQL | State management fails |
+| **runner** | papi, cortex | Task execution fails |
+
+### Infrastructure Dependencies
+
+| Component | Depends On | Check Command |
+|-----------|------------|---------------|
+| **All apps** | Linkerd (mesh) | `linkerd check` |
+| **All apps** | Vault (secrets) | `kubectl get pods -n vault` |
+| **Secrets** | CSI driver | `kubectl get pods -n kube-system -l app=secrets-store-csi-driver` |
+| **Ingress** | cert-manager | `kubectl get certificates -A` |
+| **Metrics** | Alloy → Mimir | `kubectl logs -n grafana-alloy -l app.kubernetes.io/name=alloy` |
+| **Logs** | Alloy → Loki | Same as above |
+
+### Debugging Dependency Failures
+
+**When a service won't start:**
+
+1. Check Flux dependencies first:
+   ```bash
+   flux get kustomization <name> -n flux-system
+   # Look at "dependsOn" and check those are Ready
+   ```
+
+2. Check infrastructure components:
+   ```bash
+   # Vault
+   kubectl get pods -n vault
+
+   # Linkerd
+   linkerd check
+
+   # CSI driver
+   kubectl get pods -n kube-system -l app=secrets-store-csi-driver
+   ```
+
+3. Check the service's own dependencies:
+   ```bash
+   # Database connectivity
+   kubectl exec -n backend-services deploy/papi -- nc -zv postgres-primary.postgres.svc 5432
+
+   # Redis connectivity
+   kubectl exec -n backend-services deploy/papi -- nc -zv redis-master.redis.svc 6379
+   ```
+
+### Common Dependency Issues
+
+| Symptom | Likely Cause | Resolution |
+|---------|--------------|------------|
+| Pod stuck in Init | Vault/secrets not ready | Check Vault pods, CSI driver |
+| Connection refused to DB | PostgreSQL not ready | Check postgres namespace pods |
+| Kustomization waiting | Dependency Kustomization failed | Fix upstream Kustomization first |
+| Linkerd inject failed | Linkerd not installed | Check infrastructure-linkerd Kustomization |
+| Certificate not ready | cert-manager issue | `kubectl describe certificate <name>` |
