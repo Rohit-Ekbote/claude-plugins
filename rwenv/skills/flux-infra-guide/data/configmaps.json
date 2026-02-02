@@ -1,0 +1,37 @@
+{
+  "configMaps": {
+    "cluster-vars": {
+      "namespace": "flux-system",
+      "generatedBy": "crossplane-sync",
+      "sourceFile": "infrastructure/crossplane-clusters/cluster-vars/",
+      "description": "Cluster-wide variables for Flux substitution",
+      "keys": {
+        "cluster_name": "Variable: cluster name (e.g., platform-cluster-01)",
+        "project_id": "Variable: GCP project ID",
+        "domain": "Variable: base domain",
+        "subdomain": "Variable: subdomain prefix",
+        "vault_address": "Variable: Vault URL",
+        "artifact_registry_path": "Variable: Container registry path"
+      },
+      "usedBy": "All Kustomizations via postBuild.substituteFrom"
+    }
+  },
+  "variableSubstitution": {
+    "mechanism": "Flux postBuild.substituteFrom",
+    "sourceConfigMap": "cluster-vars",
+    "namespace": "flux-system",
+    "syntax": "${variable_name}",
+    "commonVariables": {
+      "${cluster_name}": "Cluster identifier",
+      "${project_id}": "GCP project ID",
+      "${domain}": "Base domain (e.g., runwhen.com)",
+      "${subdomain}": "Subdomain prefix (e.g., nonprod)",
+      "${vault_address}": "Vault server URL",
+      "${artifact_registry_path}": "Path to container registry"
+    }
+  },
+  "metadata": {
+    "generatedFrom": "infra-flux-nonprod-test",
+    "generatedAt": "2026-02-02T00:00:00Z"
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "services": {
+    "papi": {
+      "namespace": "backend-services",
+      "deployment": "papi",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "Platform API - core backend service"
+    },
+    "activities": {
+      "namespace": "backend-services",
+      "deployment": "activities",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "Activities service"
+    },
+    "alerts": {
+      "namespace": "backend-services",
+      "deployment": "alerts",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "Alerts service for user notifications"
+    },
+    "modelsync": {
+      "namespace": "backend-services",
+      "deployment": "modelsync",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "Model synchronization service"
+    },
+    "agentfarm": {
+      "namespace": "backend-services",
+      "deployment": "agentfarm",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "Agent farm for AI agents"
+    },
+    "celery-worker": {
+      "namespace": "backend-services",
+      "deployment": "celery-worker",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "Celery async task workers"
+    },
+    "celery-beat": {
+      "namespace": "backend-services",
+      "deployment": "beat",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "Celery beat scheduler"
+    },
+    "flower": {
+      "namespace": "backend-services",
+      "deployment": "flower",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "Celery monitoring UI"
+    },
+    "embedder": {
+      "namespace": "backend-services",
+      "deployment": "embedder",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "Text embedding service"
+    },
+    "slackbot": {
+      "namespace": "backend-services",
+      "deployment": "slackbot",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "Slack integration bot"
+    },
+    "sobow-index": {
+      "namespace": "backend-services",
+      "deployment": "sobow-index",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "SOBOW indexing service"
+    },
+    "sobow-search": {
+      "namespace": "backend-services",
+      "deployment": "sobow-search",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "SOBOW search service"
+    },
+    "usearch-indexer": {
+      "namespace": "backend-services",
+      "deployment": "usearch-indexer",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "USearch indexer"
+    },
+    "usearch-query": {
+      "namespace": "backend-services",
+      "deployment": "usearch-query",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "USearch query service"
+    },
+    "usearch-worker": {
+      "namespace": "backend-services",
+      "deployment": "usearch-worker",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "USearch background workers"
+    },
+    "usearch-beat": {
+      "namespace": "backend-services",
+      "deployment": "usearch-beat",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "USearch beat scheduler"
+    },
+    "sobrain": {
+      "namespace": "backend-services",
+      "deployment": "sobrain",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "SOBrain AI service"
+    },
+    "webhooks": {
+      "namespace": "backend-services",
+      "deployment": "webhooks",
+      "fluxPath": "apps/backend-services/",
+      "kustomization": "runwhen-backend-services",
+      "description": "Webhook handler service"
+    },
+    "corestate": {
+      "namespace": "corestate",
+      "deployment": "corestate",
+      "fluxPath": "apps/corestate/",
+      "kustomization": "runwhen-corestate",
+      "description": "State management service"
+    },
+    "gitservice": {
+      "namespace": "gitservice",
+      "deployment": "gitservice",
+      "fluxPath": "apps/gitservice/",
+      "kustomization": "runwhen-gitservice",
+      "description": "Git integration service"
+    },
+    "litellm-proxy": {
+      "namespace": "llm-gateway",
+      "deployment": "litellm-proxy",
+      "fluxPath": "apps/llm-gateway/",
+      "kustomization": "runwhen-llm-gateway",
+      "description": "LiteLLM proxy for LLM routing"
+    }
+  },
+  "metadata": {
+    "generatedFrom": "infra-flux-nonprod-test",
+    "generatedAt": "2026-02-02T00:00:00Z",
+    "fluxRepoPath": "/Users/rohitekbote/wd/code/github.com/runwhen/infra-flux-nonprod-test"
+  }
+}
