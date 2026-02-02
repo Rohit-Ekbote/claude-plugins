@@ -236,3 +236,91 @@ Pod reads secret file at /secrets/secrets.py
 | "secret not found" on pod start | Vault role missing/wrong | Vault policy for `kubernetes-${cluster_name}` |
 | Pod stuck in ContainerCreating | CSI driver timeout | CSI driver pods, Vault connectivity |
 | Secret file empty | Vault path incorrect | `vault kv get shared/data/secrets` |
+
+---
+
+## ConfigMaps
+
+Environment variables and configuration injected into services.
+
+### How to Use
+
+For config questions ("what value does X have", "where is Y configured"):
+1. Read `data/configmaps.json` from this skill's directory
+2. Find the ConfigMap and key
+3. Trace variable substitution if `${variable}` syntax is used
+
+### Data Format (configmaps.json)
+
+```json
+{
+  "configMaps": {
+    "papi-env-vars-cm": {
+      "namespace": "backend-services",
+      "generatedBy": "kustomization",
+      "sourceFile": "apps/backend-services/kustomization.yaml",
+      "keys": {
+        "DEFAULT_GITLAB_GROUP": "${cluster_name}",
+        "GIT_SERVICE_URL": "https://git.${subdomain}.${domain}",
+        "CONTAINER_REGISTRY": "gcr.io/${project_id}",
+        "PAPI_SERVICE_URL": "http://papi.backend-services.svc.cluster.local"
+      },
+      "usedBy": ["papi", "celery-worker"]
+    },
+    "cluster-vars": {
+      "namespace": "flux-system",
+      "generatedBy": "crossplane-sync",
+      "sourceFile": "infrastructure/crossplane-clusters/cluster-vars/",
+      "keys": {
+        "cluster_name": "platform-cluster-01",
+        "project_id": "runwhen-nonprod",
+        "domain": "runwhen.com",
+        "subdomain": "nonprod"
+      },
+      "usedBy": ["all kustomizations via postBuild.substituteFrom"]
+    }
+  },
+  "variableSubstitution": {
+    "mechanism": "Flux postBuild.substituteFrom",
+    "sourceConfigMap": "cluster-vars",
+    "namespace": "flux-system",
+    "syntax": "${variable_name}"
+  },
+  "metadata": {
+    "generatedFrom": "infra-flux-nonprod-test",
+    "generatedAt": "2026-02-02T10:00:00Z"
+  }
+}
+```
+
+### Variable Substitution Flow
+
+```
+cluster-vars ConfigMap (flux-system)
+    │
+    ├── cluster_name: platform-cluster-01
+    ├── project_id: runwhen-nonprod
+    │
+    ▼
+Kustomization spec.postBuild.substituteFrom
+    │
+    ▼
+Apps reference ${cluster_name} → resolved to "platform-cluster-01"
+```
+
+### Debugging Config Issues
+
+**Check order when config seems wrong:**
+
+1. Check raw ConfigMap: `kubectl get cm <name> -n <namespace> -o yaml`
+2. Check cluster-vars (source of substitution): `kubectl get cm cluster-vars -n flux-system -o yaml`
+3. Check pod's actual env: `kubectl exec <pod> -n <namespace> -- env | grep <VAR>`
+4. Check if Kustomization reconciled: `flux get kustomization <name>`
+
+**Common failure patterns:**
+
+| Symptom | Likely cause | Check |
+|---------|--------------|-------|
+| `${variable}` literal in pod env | Kustomization didn't substitute | cluster-vars ConfigMap exists? |
+| Old value still present | Pod not restarted after ConfigMap update | `kubectl rollout restart deployment/<name>` |
+| Value different than expected | Wrong cluster-vars source | Check Crossplane sync status |
