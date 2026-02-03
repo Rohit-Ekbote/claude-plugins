@@ -1,5 +1,5 @@
 ---
-name: rwenv:k8s-ops
+name: k8s-ops
 description: Kubernetes operations subagent for pod management, flux operations, and debugging
 triggers:
   - kubernetes operations
