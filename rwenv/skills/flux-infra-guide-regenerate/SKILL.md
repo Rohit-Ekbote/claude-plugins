@@ -31,7 +31,7 @@ If not present, clone it:
 git clone <fluxGitRepo from envs.json> "$FLUX_REPO"
 ```
 
-### Step 2: Generate services.json
+### Step 2: Generate services.json (with imageGroups)
 
 Scan the `apps/` directory:
 
@@ -39,8 +39,37 @@ Scan the `apps/` directory:
    - Read `kustomization.yaml` for namespace
    - Find `*-deployment.yaml` files for service names
    - Extract service → namespace → deployment mappings
+   - **Extract `images[]` section for imageGroups**
 
-2. Write to `<plugin-dir>/skills/flux-infra-guide/data/services.json`
+2. **Extract imageGroups from kustomization.yaml files:**
+   ```bash
+   # Find all kustomization.yaml files with images section
+   find apps/ -name "kustomization.yaml" -exec grep -l "images:" {} \;
+
+   # For each file, extract images configuration
+   yq '.images[]' apps/<app>/kustomization.yaml
+   ```
+
+3. **Build imageGroups structure:**
+   ```json
+   {
+     "imageGroups": {
+       "<image-name>": {
+         "file": "apps/<app>/kustomization.yaml",
+         "imageName": "<image-name>",
+         "type": "kustomize-images",
+         "yqPath": ".images[] | select(.name == \"<image-name>\") .newTag",
+         "services": ["<service1>", "<service2>"]
+       }
+     }
+   }
+   ```
+
+4. **Link services to imageGroups:**
+   - Each service gets an `imageGroup` field pointing to its image configuration
+   - Services sharing the same image (e.g., all backend-services) share the same imageGroup
+
+5. Write to `<plugin-dir>/skills/flux-infra-guide/data/services.json`
 
 ### Step 3: Generate flux-resources.json
 
@@ -88,6 +117,58 @@ All JSON files should include:
 }
 ```
 
+## services.json Schema
+
+The updated schema includes imageGroups for rollout integration:
+
+```json
+{
+  "services": {
+    "<service-name>": {
+      "namespace": "<namespace>",
+      "deployment": "<deployment-name>",
+      "fluxPath": "apps/<app>/",
+      "kustomization": "<kustomization-name>",
+      "description": "<description>",
+      "imageGroup": "<image-group-name>"
+    }
+  },
+  "imageGroups": {
+    "<image-group-name>": {
+      "file": "apps/<app>/kustomization.yaml",
+      "imageName": "<image-name-in-kustomization>",
+      "type": "kustomize-images",
+      "yqPath": ".images[] | select(.name == \"<image-name>\") .newTag",
+      "services": ["<service1>", "<service2>"]
+    }
+  },
+  "metadata": {
+    "generatedFrom": "<flux-repo-name>",
+    "generatedAt": "<ISO-8601-timestamp>",
+    "fluxRepoPath": "<path-to-flux-repo>"
+  }
+}
+```
+
+## Extracting imageGroups
+
+For each `apps/<app>/kustomization.yaml`:
+
+```bash
+# Check if images section exists
+yq '.images' apps/backend-services/kustomization.yaml
+
+# Example output:
+# - name: backend-services
+#   newName: ${artifact_registry_path}backend-services
+#   newTag: pr-3242-01895ee
+```
+
+Map this to:
+- `imageGroup.file`: `apps/backend-services/kustomization.yaml`
+- `imageGroup.imageName`: `backend-services`
+- `imageGroup.services`: all services in that app directory
+
 ## Output
 
 After regeneration, report:
@@ -95,13 +176,20 @@ After regeneration, report:
 ```
 Regenerated flux-infra-guide data files:
 
-  services.json:      21 services mapped
+  services.json:       21 services mapped
+                       4 imageGroups configured
   flux-resources.json: 12 Kustomizations, 5 HelmReleases
-  secrets-map.json:   8 SecretProviderClasses
-  configmaps.json:    1 ConfigMaps, 6 variables
+  secrets-map.json:    8 SecretProviderClasses
+  configmaps.json:     1 ConfigMaps, 6 variables
 
 Source: infra-flux-nonprod-test
-Generated at: 2026-02-02T10:00:00Z
+Generated at: 2026-02-03T10:00:00Z
+
+ImageGroups for rollout:
+  - backend-services (18 services)
+  - corestate (1 service)
+  - gitservice (1 service)
+  - litellm-proxy (1 service)
 ```
 
 ## Error Handling
@@ -112,3 +200,4 @@ Generated at: 2026-02-02T10:00:00Z
 | Flux repo not found | "Flux repo not found. Clone it first or check fluxGitRepo in envs.json." |
 | Permission denied | "Cannot write to data directory. Check file permissions." |
 | Invalid YAML | "Failed to parse <file>: <error>. Check YAML syntax." |
+| No images section found | "No kustomize images found in <file>. Service may use HelmRelease values instead." |

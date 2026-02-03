@@ -41,11 +41,26 @@ The rwenv config specifies `fluxGitRepoType`:
 
 ## Instructions
 
-### Step 1: Verify prerequisites
+### Step 1: Get current rwenv
 
-1. Check rwenv is set for current directory (use `/rwenv-cur`)
-2. Get the flux repo URL from rwenv config: `fluxGitRepo`
-3. Get the flux repo type from rwenv config: `fluxGitRepoType`
+**IMPORTANT:** The active rwenv is stored in the project's `.claude/rwenv` file, NOT in `~/.claude/rwenv/current/`.
+
+```bash
+# Read rwenv name from project directory
+RWENV_NAME=$(cat .claude/rwenv 2>/dev/null)
+
+if [[ -z "$RWENV_NAME" ]]; then
+    echo "No rwenv set. Use /rwenv-set first."
+    exit 1
+fi
+```
+
+Then get the rwenv config:
+```bash
+# Get flux repo config from global envs.json
+FLUX_REPO_URL=$(jq -r ".rwenvs.${RWENV_NAME}.fluxGitRepo" ~/.claude/rwenv/envs.json)
+FLUX_REPO_TYPE=$(jq -r ".rwenvs.${RWENV_NAME}.fluxGitRepoType // \"github\"" ~/.claude/rwenv/envs.json)
+```
 
 ### Step 2: Construct the image tag
 
@@ -67,9 +82,7 @@ TAG="pr-${PR_NUM}-${COMMIT_SHA}"
 Flux repo location: `~/.claude/rwenv/flux-repos/<rwenv-name>/`
 
 ```bash
-FLUX_REPO_URL="<from rwenv config: fluxGitRepo>"
-FLUX_REPO_TYPE="<from rwenv config: fluxGitRepoType>"
-FLUX_REPO_PATH="$HOME/.claude/rwenv/flux-repos/<rwenv-name>"
+FLUX_REPO_PATH="$HOME/.claude/rwenv/flux-repos/${RWENV_NAME}"
 
 # Set environment for gitea repos
 if [[ "$FLUX_REPO_TYPE" == "gitea" ]]; then
@@ -89,46 +102,55 @@ fi
 
 **Important:** Use `git fetch` + `git reset --hard` instead of `git pull` to avoid merge conflicts from previous failed attempts.
 
-### Step 4: Discover flux path for service (on-demand)
+### Step 4: Look up image tag location from flux-infra-guide
 
-Search the flux repo for the service's HelmRelease or values file:
+**Read the services.json from flux-infra-guide skill to find where to update the tag.**
+
+The data file is at: `<plugin-dir>/skills/flux-infra-guide/data/services.json`
+
+```bash
+# Read service config
+SERVICE_CONFIG=$(jq ".services.${SERVICE_NAME}" <plugin-dir>/skills/flux-infra-guide/data/services.json)
+IMAGE_GROUP=$(echo "$SERVICE_CONFIG" | jq -r '.imageGroup')
+
+# Read imageGroup config
+IMAGE_GROUP_CONFIG=$(jq ".imageGroups.${IMAGE_GROUP}" <plugin-dir>/skills/flux-infra-guide/data/services.json)
+TAG_FILE=$(echo "$IMAGE_GROUP_CONFIG" | jq -r '.file')
+IMAGE_NAME=$(echo "$IMAGE_GROUP_CONFIG" | jq -r '.imageName')
+```
+
+**Data structure:**
+```json
+{
+  "services": {
+    "papi": {
+      "imageGroup": "backend-services"
+    }
+  },
+  "imageGroups": {
+    "backend-services": {
+      "file": "apps/backend-services/kustomization.yaml",
+      "imageName": "backend-services",
+      "type": "kustomize-images"
+    }
+  }
+}
+```
+
+### Step 5: Update the image tag
+
+For `kustomize-images` type (most common):
 
 ```bash
 cd "$FLUX_REPO_PATH"
 
-# Find HelmRelease with matching name
-HELM_RELEASE=$(grep -rl "name: <service>" --include="*.yaml" . | xargs grep -l "kind: HelmRelease" | head -1)
-
-# Or find values.yaml in service directory
-VALUES_FILE=$(find . -path "*/<service>/*" -name "values.yaml" | head -1)
+# Update the newTag for the specific image name
+yq -i "(.images[] | select(.name == \"${IMAGE_NAME}\")).newTag = \"${TAG}\"" "${TAG_FILE}"
 ```
 
-Common patterns to check:
-- `apps/<service>/helmrelease.yaml` - HelmRelease manifest
-- `apps/<service>/values.yaml` - Helm values file
-- `releases/<service>.yaml` - Release definition
-- `clusters/*/apps/<service>/` - Cluster-specific paths
-
-### Step 5: Update the image tag
-
-Once the file is found, update the tag using `yq`:
-
-**For values.yaml:**
+**Verify the change:**
 ```bash
-yq -i '.image.tag = "<new_tag>"' <values_file>
-```
-
-**For HelmRelease with inline values:**
-```bash
-yq -i '.spec.values.image.tag = "<new_tag>"' <helmrelease_file>
-```
-
-**For nested image config:**
-```bash
-# Check structure first
-yq '.image' <file>
-# or
-yq '.spec.values.image' <file>
+grep -A2 "name: ${IMAGE_NAME}" "${TAG_FILE}"
 ```
 
 ### Step 6: Commit and push
@@ -144,8 +166,8 @@ if [[ "$FLUX_REPO_TYPE" == "gitea" ]]; then
 fi
 
 # Stage and commit
-git add <updated_file>
-git commit -m "chore(<service>): update image tag to <new_tag>"
+git add "${TAG_FILE}"
+git commit -m "chore(${IMAGE_GROUP}): update image tag to ${TAG}"
 
 # Push with explicit refs (works regardless of upstream config)
 git push origin HEAD:main
@@ -154,14 +176,17 @@ git push origin HEAD:main
 ### Step 7: Report success
 
 ```
-✓ Updated <service> to <tag>
+✓ Updated ${IMAGE_GROUP} to ${TAG}
 
-Flux repo: <flux_repo_url>
-File: <updated_file>
-Tag: <new_tag>
+Flux repo: ${FLUX_REPO_URL}
+File: ${TAG_FILE}
+Image: ${IMAGE_NAME}
+Tag: ${TAG}
+
+Services affected: ${SERVICES_LIST}
 
 Flux will reconcile automatically. To force immediate sync:
-  flux reconcile kustomization <name> --with-source
+  flux reconcile kustomization ${KUSTOMIZATION} --with-source
 ```
 
 ## Example Session
@@ -169,27 +194,30 @@ Flux will reconcile automatically. To force immediate sync:
 **User:** rollout papi
 
 **Claude:**
-1. Checks rwenv is set → `rdebug`
-2. Gets flux repo type → `gitea`
+1. Reads `.claude/rwenv` → `rdebug`
+2. Reads `~/.claude/rwenv/envs.json` → gets `fluxGitRepo`, `fluxGitRepoType: gitea`
 3. Gets PR number → `42`
 4. Gets commit SHA → `a1b2c3d` (7 chars)
 5. Constructs tag → `pr-42-a1b2c3d`
-6. Sets `GIT_SSL_NO_VERIFY=1` (gitea repo)
-7. Updates flux repo at `~/.claude/rwenv/flux-repos/rdebug/`
-8. Finds `apps/papi/values.yaml`
-9. Updates `.image.tag` to `pr-42-a1b2c3d`
+6. Reads `flux-infra-guide/data/services.json`:
+   - papi.imageGroup → `backend-services`
+   - backend-services.file → `apps/backend-services/kustomization.yaml`
+   - backend-services.imageName → `backend-services`
+7. Sets `GIT_SSL_NO_VERIFY=1` (gitea repo)
+8. Updates flux repo at `~/.claude/rwenv/flux-repos/rdebug/`
+9. Runs: `yq -i '(.images[] | select(.name == "backend-services")).newTag = "pr-42-a1b2c3d"' apps/backend-services/kustomization.yaml`
 10. Commits and pushes with `git push origin HEAD:main`
-11. Reports: "✓ Updated papi to pr-42-a1b2c3d"
+11. Reports: "✓ Updated backend-services to pr-42-a1b2c3d"
 
 ## Error Handling
 
 | Error | Response |
 |-------|----------|
-| No rwenv set | "No rwenv set. Use `/rwenv-set` first." |
+| No `.claude/rwenv` file | "No rwenv set. Use `/rwenv-set` first." |
 | No PR for branch | "No PR found for current branch. Create a PR first with `gh pr create`." |
 | No fluxGitRepo in rwenv | "No flux repo configured for this rwenv. Add `fluxGitRepo` to rwenv config." |
-| No fluxGitRepoType in rwenv | "No flux repo type configured. Add `fluxGitRepoType: gitea` or `fluxGitRepoType: github` to rwenv config." |
-| Service not found in flux repo | "Could not find flux config for '<service>'. Searched for HelmRelease and values.yaml." Then ask user to provide the path. |
+| Service not in services.json | "Service '<name>' not found in flux-infra-guide. Run `/flux-infra-guide-regenerate` or provide the file path manually." |
+| No imageGroup for service | "No imageGroup configured for '<name>'. Update services.json or provide the file path manually." |
 | Git push fails | See Troubleshooting section below. |
 
 ## Troubleshooting
@@ -227,9 +255,9 @@ git log --oneline -3
 git reset --hard origin/main
 
 # 5. Redo changes and push
-# ... make changes again ...
+yq -i '(.images[] | select(.name == "<image>")).newTag = "<tag>"' <file>
 git add <file>
-git commit -m "chore(<service>): update image tag to <tag>"
+git commit -m "chore(<image>): update image tag to <tag>"
 git push origin HEAD:main --verbose
 ```
 
@@ -251,3 +279,5 @@ rm -rf "$HOME/.claude/rwenv/flux-repos/<rwenv-name>"
 - **DO NOT** verify the image exists before updating
 - **DO NOT** use `git push` without explicit remote and branch refs
 - **DO NOT** use `git pull` (use `fetch` + `reset --hard` to avoid merge issues)
+- **DO NOT** look for rwenv in `~/.claude/rwenv/current/` (use `.claude/rwenv` in project dir)
+- **DO NOT** search for tag location manually (use flux-infra-guide data)

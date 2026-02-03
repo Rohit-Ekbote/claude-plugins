@@ -5,152 +5,203 @@
       "deployment": "papi",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "Platform API - core backend service"
+      "description": "Platform API - core backend service",
+      "imageGroup": "backend-services"
     },
     "activities": {
       "namespace": "backend-services",
       "deployment": "activities",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "Activities service"
+      "description": "Activities service",
+      "imageGroup": "backend-services"
     },
     "alerts": {
       "namespace": "backend-services",
       "deployment": "alerts",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "Alerts service for user notifications"
+      "description": "Alerts service for user notifications",
+      "imageGroup": "backend-services"
     },
     "modelsync": {
       "namespace": "backend-services",
       "deployment": "modelsync",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "Model synchronization service"
+      "description": "Model synchronization service",
+      "imageGroup": "backend-services"
     },
     "agentfarm": {
       "namespace": "backend-services",
       "deployment": "agentfarm",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "Agent farm for AI agents"
+      "description": "Agent farm for AI agents",
+      "imageGroup": "backend-services"
     },
     "celery-worker": {
       "namespace": "backend-services",
       "deployment": "celery-worker",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "Celery async task workers"
+      "description": "Celery async task workers",
+      "imageGroup": "backend-services"
     },
     "celery-beat": {
       "namespace": "backend-services",
       "deployment": "beat",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "Celery beat scheduler"
+      "description": "Celery beat scheduler",
+      "imageGroup": "backend-services"
     },
     "flower": {
       "namespace": "backend-services",
       "deployment": "flower",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "Celery monitoring UI"
+      "description": "Celery monitoring UI",
+      "imageGroup": "backend-services"
     },
     "embedder": {
       "namespace": "backend-services",
       "deployment": "embedder",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "Text embedding service"
+      "description": "Text embedding service",
+      "imageGroup": "backend-services"
     },
     "slackbot": {
       "namespace": "backend-services",
       "deployment": "slackbot",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "Slack integration bot"
+      "description": "Slack integration bot",
+      "imageGroup": "backend-services"
     },
     "sobow-index": {
       "namespace": "backend-services",
       "deployment": "sobow-index",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "SOBOW indexing service"
+      "description": "SOBOW indexing service",
+      "imageGroup": "backend-services"
     },
     "sobow-search": {
       "namespace": "backend-services",
       "deployment": "sobow-search",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "SOBOW search service"
+      "description": "SOBOW search service",
+      "imageGroup": "backend-services"
     },
     "usearch-indexer": {
       "namespace": "backend-services",
       "deployment": "usearch-indexer",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "USearch indexer"
+      "description": "USearch indexer",
+      "imageGroup": "backend-services"
     },
     "usearch-query": {
       "namespace": "backend-services",
       "deployment": "usearch-query",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "USearch query service"
+      "description": "USearch query service",
+      "imageGroup": "backend-services"
     },
     "usearch-worker": {
       "namespace": "backend-services",
       "deployment": "usearch-worker",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "USearch background workers"
+      "description": "USearch background workers",
+      "imageGroup": "backend-services"
     },
     "usearch-beat": {
       "namespace": "backend-services",
       "deployment": "usearch-beat",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "USearch beat scheduler"
+      "description": "USearch beat scheduler",
+      "imageGroup": "backend-services"
     },
     "sobrain": {
       "namespace": "backend-services",
       "deployment": "sobrain",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "SOBrain AI service"
+      "description": "SOBrain AI service",
+      "imageGroup": "backend-services"
     },
     "webhooks": {
       "namespace": "backend-services",
       "deployment": "webhooks",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "Webhook handler service"
+      "description": "Webhook handler service",
+      "imageGroup": "backend-services"
     },
     "corestate": {
       "namespace": "corestate",
       "deployment": "corestate",
       "fluxPath": "apps/corestate/",
       "kustomization": "runwhen-corestate",
-      "description": "State management service"
+      "description": "State management service",
+      "imageGroup": "corestate"
     },
     "gitservice": {
       "namespace": "gitservice",
       "deployment": "gitservice",
       "fluxPath": "apps/gitservice/",
       "kustomization": "runwhen-gitservice",
-      "description": "Git integration service"
+      "description": "Git integration service",
+      "imageGroup": "gitservice"
     },
     "litellm-proxy": {
       "namespace": "llm-gateway",
       "deployment": "litellm-proxy",
       "fluxPath": "apps/llm-gateway/",
       "kustomization": "runwhen-llm-gateway",
-      "description": "LiteLLM proxy for LLM routing"
+      "description": "LiteLLM proxy for LLM routing",
+      "imageGroup": "litellm-proxy"
+    }
+  },
+  "imageGroups": {
+    "backend-services": {
+      "file": "apps/backend-services/kustomization.yaml",
+      "imageName": "backend-services",
+      "type": "kustomize-images",
+      "yqPath": ".images[] | select(.name == \"backend-services\") .newTag",
+      "services": ["papi", "activities", "alerts", "modelsync", "agentfarm", "celery-worker", "celery-beat", "flower", "embedder", "slackbot", "sobow-index", "sobow-search", "usearch-indexer", "usearch-query", "usearch-worker", "usearch-beat", "sobrain", "webhooks"]
+    },
+    "corestate": {
+      "file": "apps/corestate/kustomization.yaml",
+      "imageName": "corestate",
+      "type": "kustomize-images",
+      "yqPath": ".images[] | select(.name == \"corestate\") .newTag",
+      "services": ["corestate"]
+    },
+    "gitservice": {
+      "file": "apps/gitservice/kustomization.yaml",
+      "imageName": "gitservice",
+      "type": "kustomize-images",
+      "yqPath": ".images[] | select(.name == \"gitservice\") .newTag",
+      "services": ["gitservice"]
+    },
+    "litellm-proxy": {
+      "file": "apps/llm-gateway/kustomization.yaml",
+      "imageName": "litellm-proxy",
+      "type": "kustomize-images",
+      "yqPath": ".images[] | select(.name == \"litellm-proxy\") .newTag",
+      "services": ["litellm-proxy"]
     }
   },
   "metadata": {
     "generatedFrom": "infra-flux-nonprod-test",
-    "generatedAt": "2026-02-02T00:00:00Z",
+    "generatedAt": "2026-02-03T00:00:00Z",
     "fluxRepoPath": "/Users/rohitekbote/wd/code/github.com/runwhen/infra-flux-nonprod-test"
   }
 }

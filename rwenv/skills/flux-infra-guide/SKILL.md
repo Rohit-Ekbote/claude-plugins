@@ -37,6 +37,7 @@ This skill uses lazy loading. Read data files only when needed:
 | Question Type | Data File |
 |---------------|-----------|
 | Service location ("where does X run") | `data/services.json` |
+| Image tag location (for rollout) | `data/services.json` → `imageGroups` |
 | Flux status ("why isn't X syncing") | `data/flux-resources.json` |
 | Secrets ("where does X get credentials") | `data/secrets-map.json` |
 | Config ("what value does X have") | `data/configmaps.json` |
@@ -66,7 +67,16 @@ For service location questions ("where does X run", "what namespace is Y"):
       "deployment": "papi",
       "fluxPath": "apps/backend-services/",
       "kustomization": "runwhen-backend-services",
-      "description": "Platform API - core backend service"
+      "description": "Platform API - core backend service",
+      "imageGroup": "backend-services"
+    }
+  },
+  "imageGroups": {
+    "backend-services": {
+      "file": "apps/backend-services/kustomization.yaml",
+      "imageName": "backend-services",
+      "type": "kustomize-images",
+      "services": ["papi", "celery-worker", "..."]
     }
   },
   "metadata": {
@@ -74,6 +84,22 @@ For service location questions ("where does X run", "what namespace is Y"):
     "generatedAt": "2026-02-02T10:00:00Z"
   }
 }
+```
+
+### Image Groups (for rollout)
+
+The `imageGroups` section maps image names to their location in the flux repo. This is used by the `/rollout` skill to update image tags without searching.
+
+| Field | Description |
+|-------|-------------|
+| `file` | Path to kustomization.yaml with `images[]` section |
+| `imageName` | The `name` field in `images[]` to match |
+| `type` | Always `kustomize-images` for kustomize-based repos |
+| `services` | List of services that share this image |
+
+**Update command:**
+```bash
+yq -i '(.images[] | select(.name == "<imageName>")).newTag = "<tag>"' <file>
 ```
 
 ### Common Namespaces
