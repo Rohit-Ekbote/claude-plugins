@@ -19,10 +19,16 @@ Handle Kubernetes operations using the active rwenv context. All commands automa
 
 Before executing any operations:
 
-1. **Verify rwenv is set** for current directory
-   - If not set, inform user and suggest `/rwenv-set`
+1. **Get current rwenv name** from `.claude/rwenv` file in the **working directory**
+   ```bash
+   cat .claude/rwenv
+   ```
+   - This file contains just the rwenv name (e.g., `rdebug`)
+   - **DO NOT** look in `~/.claude/rwenv/current/` or similar - the active rwenv is ALWAYS in `.claude/rwenv` in the project directory
+   - If file doesn't exist, no rwenv is set - inform user and suggest `/rwenv-set`
 
 2. **Load rwenv configuration** from `${RWENV_CONFIG_DIR:-~/.claude/rwenv}/envs.json`
+   - Use the rwenv name from step 1 to look up the configuration
    - Get `kubernetesContext`, `kubeconfigPath`, `readOnly` settings
 
 3. **Load services catalog** from plugin's `data/infra-catalog.json`
