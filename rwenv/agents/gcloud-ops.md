@@ -18,7 +18,13 @@ Handle Google Cloud Platform operations using the active rwenv context. **All gc
 
 Before executing any operations:
 
-1. **Verify rwenv is set** for current directory
+1. **Get current rwenv name** from `.claude/rwenv` file in the **working directory**
+   ```bash
+   cat .claude/rwenv
+   ```
+   - This file contains just the rwenv name (e.g., `rdebug`)
+   - **DO NOT** look in `~/.claude/rwenv/current/` or similar - the active rwenv is ALWAYS in `.claude/rwenv` in the project directory
+   - If file doesn't exist, no rwenv is set - inform user and suggest `/rwenv-set`
 
 2. **Verify rwenv type is GKE**
    - gcloud is only available for GKE-type rwenvs
