@@ -364,6 +364,10 @@ set_rwenv_for_dir() {
     # Auto-gitignore
     if [[ -d "$dir/.git" ]] || git -C "$dir" rev-parse --git-dir >/dev/null 2>&1; then
         if ! grep -qxF '.claude/rwenv' "$gitignore" 2>/dev/null; then
+            # Ensure newline before appending if file exists and doesn't end with one
+            if [[ -f "$gitignore" ]] && [[ -s "$gitignore" ]] && [[ "$(tail -c 1 "$gitignore" | wc -l)" -eq 0 ]]; then
+                echo >> "$gitignore"
+            fi
             echo '.claude/rwenv' >> "$gitignore"
         fi
     fi
