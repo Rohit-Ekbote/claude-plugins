@@ -386,6 +386,10 @@ EOF
 }
 
 # Main execution - process all git commands in compound command
+# Track whether all git commands target external repos (for auto-approval)
+ALL_FLUX_REPOS=true
+HAS_GIT_CMD=false
+
 # Split by command separators and process each git command
 while IFS= read -r git_cmd; do
     # Skip empty lines
@@ -397,12 +401,27 @@ while IFS= read -r git_cmd; do
     # Skip if not a git command
     [[ ! "$git_cmd" =~ ^git[[:space:]] ]] && continue
 
+    HAS_GIT_CMD=true
+
     # Determine effective working directory for this git command
     effective_cwd=$(get_effective_cwd_for_git "$ORIGINAL_CMD" "$git_cmd")
 
     # Check git safety for this command
     check_git_safety "$git_cmd" "$effective_cwd"
+
+    # Track if this git command targets an rwenv flux repo
+    normalized_cwd=$(cd "$effective_cwd" 2>/dev/null && pwd -P) || normalized_cwd=""
+    flux_repos_dir="${HOME}/.claude/rwenv/flux-repos"
+    if [[ -z "$normalized_cwd" || "$normalized_cwd" != "$flux_repos_dir"* ]]; then
+        ALL_FLUX_REPOS=false
+    fi
 done < <(echo "$ORIGINAL_CMD" | sed 's/&&/\n/g; s/;/\n/g; s/||/\n/g')
 
-# If we get here, all commands are allowed (exit 0 with no output means no modification)
+# Auto-approve git commands that only target rwenv flux repos
+if [[ "$HAS_GIT_CMD" == "true" && "$ALL_FLUX_REPOS" == "true" ]]; then
+    echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+    exit 0
+fi
+
+# If we get here, commands target current project but passed safety checks
 exit 0
