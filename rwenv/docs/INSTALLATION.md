@@ -95,14 +95,6 @@ Example configuration:
 }
 ```
 
-### env-consumers.json (Optional)
-
-This file is created automatically when you use `/rwenv-set`. You can also create it manually:
-
-```bash
-echo '{}' > ~/.claude/rwenv/env-consumers.json
-```
-
 ## Step 5: Verify Dev Container
 
 Ensure your dev container is running:

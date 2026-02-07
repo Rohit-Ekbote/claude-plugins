@@ -212,7 +212,7 @@ Each working directory can have its own environment:
 /Users/me/project-c  -> prod
 ```
 
-This is managed via `env-consumers.json` and persists across sessions.
+This is managed via per-project `.claude/rwenv` files (auto-gitignored) and persists across sessions.
 
 ## Worktree Support
 

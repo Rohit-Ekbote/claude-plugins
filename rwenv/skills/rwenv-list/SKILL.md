@@ -17,7 +17,7 @@ List all configured rwenv environments showing their type, description, and stat
 
 1. **Read the configuration file** at `${RWENV_CONFIG_DIR:-~/.claude/rwenv}/envs.json`
 
-2. **Read the consumer mapping** at `${RWENV_CONFIG_DIR:-~/.claude/rwenv}/env-consumers.json` to determine which rwenv is active for the current directory
+2. **Check the active rwenv** by reading `.claude/rwenv` in the current project directory to determine which rwenv is active
 
 3. **Display a formatted table** with the following columns:
    - Name (with `*` indicator if active for current directory)
@@ -62,4 +62,4 @@ To set up rwenv:
 ## Error Handling
 
 - If `envs.json` is malformed, report the JSON parsing error
-- If `env-consumers.json` doesn't exist, proceed without active indicator (no rwenv selected)
+- If `.claude/rwenv` doesn't exist in the current project, proceed without active indicator (no rwenv selected)

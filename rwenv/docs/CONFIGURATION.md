@@ -6,8 +6,9 @@ By default, rwenv configuration lives at:
 
 ```
 ~/.claude/rwenv/
-├── envs.json           # Environment definitions
-└── env-consumers.json  # Directory mappings
+└── envs.json           # Environment definitions
+
+Active environment selection is stored per-project in `<project>/.claude/rwenv` (auto-gitignored).
 ```
 
 ### Custom Location
@@ -155,37 +156,27 @@ Shared database configurations accessible from any rwenv:
 
 **Note:** Passwords are fetched from the Kubernetes secret at runtime and never stored in configuration.
 
-## env-consumers.json
+## Per-Project Environment Selection
 
-Maps working directories to active environments.
+The active environment is stored per-project in `.claude/rwenv` (a plain text file containing the rwenv name). This file is automatically gitignored.
 
-### Schema
+### How It Works
 
-```json
-{
-  "/path/to/directory": "rwenv-name",
-  "/another/path": "another-rwenv"
-}
-```
+- `/rwenv-set dev` writes `dev` to `<project>/.claude/rwenv`
+- The plugin reads this file to determine the active environment
+- Each project can have its own independent environment selection
 
 ### Example
 
-```json
-{
-  "/Users/me/projects/app-backend": "dev",
-  "/Users/me/projects/app-frontend": "dev",
-  "/Users/me/projects/infra": "staging",
-  "/Users/me/projects/prod-debug": "prod"
-}
+```
+/Users/me/projects/app-backend/.claude/rwenv   -> contains "dev"
+/Users/me/projects/infra/.claude/rwenv          -> contains "staging"
+/Users/me/projects/prod-debug/.claude/rwenv     -> contains "prod"
 ```
 
 ### Automatic Management
 
-This file is automatically updated when you use `/rwenv-set`. You rarely need to edit it manually.
-
-### Worktree Inheritance
-
-If a directory is not explicitly mapped, the plugin checks parent directories. This allows git worktrees to inherit the main project's environment.
+This file is automatically created/updated when you use `/rwenv-set`. You rarely need to edit it manually.
 
 ## Complete Example
 
@@ -306,19 +297,18 @@ export RWENV_CONFIG_DIR=/shared/team-a/rwenv
 
 ### Per-User Overrides
 
-Users can maintain personal `env-consumers.json` while sharing `envs.json`:
+Users can share `envs.json` while maintaining per-project environment selection:
 
 ```bash
 # Shared envs.json
 /shared/team/rwenv/envs.json
 
-# Personal consumer mappings
-~/.claude/rwenv/env-consumers.json
+# Per-project selection (auto-managed)
+<project>/.claude/rwenv
 ```
 
 Set up with symlinks:
 ```bash
 mkdir -p ~/.claude/rwenv
 ln -s /shared/team/rwenv/envs.json ~/.claude/rwenv/envs.json
-touch ~/.claude/rwenv/env-consumers.json
 ```

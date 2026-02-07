@@ -136,7 +136,7 @@ Use AskUserQuestion:
 1. Read existing `envs.json` (or create new if doesn't exist)
 2. Add the new rwenv to the `rwenvs` object
 3. Write updated config back to file
-4. If "set as active" was chosen, update `env-consumers.json`
+4. If "set as active" was chosen, write the rwenv name to `.claude/rwenv` in the current project directory (auto-gitignored)
 
 Display confirmation:
 ```
