@@ -13,41 +13,44 @@ triggers:
 
 # Kubernetes Operations Subagent
 
-Handle Kubernetes operations using the active rwenv context. All commands automatically use the correct kubeconfig, context, and run through the dev container.
+Handle Kubernetes operations using the active rwenv context. All commands automatically use the correct kubeconfig, context, and execution mode (container or local).
 
 ## Prerequisites
 
 Before executing any operations:
 
-1. **Get current rwenv name** from `.claude/rwenv` file in the **working directory**
+1. **Source runtime config** from `.claude/rwenv-env` in the **working directory**
    ```bash
-   cat .claude/rwenv
+   source .claude/rwenv-env
    ```
-   - This file contains just the rwenv name (e.g., `rdebug`)
-   - **DO NOT** look in `~/.claude/rwenv/current/` or similar - the active rwenv is ALWAYS in `.claude/rwenv` in the project directory
    - If file doesn't exist, no rwenv is set - inform user and suggest `/rwenv-set`
+   - This provides: `RWENV_NAME`, `RWENV_MODE`, `RWENV_KUBECONFIG`, `RWENV_CONTEXT`, `RWENV_READ_ONLY`, `RWENV_DEV_CONTAINER`, `RWENV_GCP_PROJECT`
 
-2. **Load rwenv configuration** from `${RWENV_CONFIG_DIR:-~/.claude/rwenv}/envs.json`
-   - Use the rwenv name from step 1 to look up the configuration
-   - Get `kubernetesContext`, `kubeconfigPath`, `readOnly` settings
-
-3. **Load services catalog** from plugin's `data/infra-catalog.json`
-   - Use for service → namespace lookups (e.g., "papi" → namespace: runwhen-local)
-   - If catalog missing, warn but continue (can specify namespace manually)
-
-4. **Check dev container** is running
-   - Container name from `devContainer` field in envs.json
+2. **Load services catalog** from plugin's `data/infra-catalog.json`
+   - Use for service → namespace lookups
+   - If catalog missing, warn but continue
 
 ## Command Execution Pattern
 
-All kubectl/helm/flux commands MUST be executed through the dev container:
+Construct commands based on `RWENV_MODE`:
 
+**Container mode (`RWENV_MODE=container`):**
 ```bash
-docker exec -it <devContainer> kubectl \
-  --kubeconfig=<kubeconfigPath> \
-  --context=<kubernetesContext> \
+docker exec -i $RWENV_DEV_CONTAINER kubectl \
+  --kubeconfig=$RWENV_KUBECONFIG \
+  --context=$RWENV_CONTEXT \
   <command>
 ```
+
+**Local mode (`RWENV_MODE=local`):**
+```bash
+kubectl \
+  --kubeconfig=$RWENV_KUBECONFIG \
+  --context=$RWENV_CONTEXT \
+  <command>
+```
+
+Similarly for helm (`--kube-context` instead of `--context`) and flux.
 
 ## Capabilities
 
@@ -103,7 +106,7 @@ docker exec -it <devContainer> kubectl \
 
 ## Read-Only Mode Enforcement
 
-When `readOnly: true` in rwenv config:
+When `RWENV_READ_ONLY=true`:
 
 1. **Block write operations** with clear error message:
    ```
@@ -156,17 +159,33 @@ curl https://agentfarm.rdebug-61.runwhen.com/api/v1/status
 
 Must use kubectl exec into a pod of that service:
 
+**Container mode (`RWENV_MODE=container`):**
 ```bash
 # 1. Find a running pod for the service
-docker exec <devContainer> kubectl \
-  --kubeconfig=<kubeconfigPath> \
-  --context=<kubernetesContext> \
+docker exec -i $RWENV_DEV_CONTAINER kubectl \
+  --kubeconfig=$RWENV_KUBECONFIG \
+  --context=$RWENV_CONTEXT \
   get pods -n <namespace> -l <podSelector> -o name | head -1
 
 # 2. Exec into pod and curl localhost
-docker exec <devContainer> kubectl \
-  --kubeconfig=<kubeconfigPath> \
-  --context=<kubernetesContext> \
+docker exec -i $RWENV_DEV_CONTAINER kubectl \
+  --kubeconfig=$RWENV_KUBECONFIG \
+  --context=$RWENV_CONTEXT \
+  exec <pod> -n <namespace> -- curl -s http://localhost:<internalPort>/api/health
+```
+
+**Local mode (`RWENV_MODE=local`):**
+```bash
+# 1. Find a running pod for the service
+kubectl \
+  --kubeconfig=$RWENV_KUBECONFIG \
+  --context=$RWENV_CONTEXT \
+  get pods -n <namespace> -l <podSelector> -o name | head -1
+
+# 2. Exec into pod and curl localhost
+kubectl \
+  --kubeconfig=$RWENV_KUBECONFIG \
+  --context=$RWENV_CONTEXT \
   exec <pod> -n <namespace> -- curl -s http://localhost:<internalPort>/api/health
 ```
 
@@ -181,8 +200,9 @@ Port-forward is reserved for database connections only. For services:
 | Error | Response |
 |-------|----------|
 | No rwenv set | "No rwenv configured. Use /rwenv-set to select an environment." |
-| Dev container not running | "Dev container '<name>' not running. Start it first." |
-| Kubeconfig not found | "Kubeconfig not found at <path> in dev container." |
+| Dev container not running (container mode) | "Dev container '$RWENV_DEV_CONTAINER' not running. Start it first." |
+| kubectl not found (local mode) | "kubectl not found locally. Check PATH or switch to container mode." |
+| Kubeconfig not found | "Kubeconfig not found at <path>. Check RWENV_KUBECONFIG." |
 | Context not found | "Context '<context>' not found in kubeconfig." |
 | Read-only violation | "rwenv '<name>' is read-only. Cannot execute: <command>" |
 | Command failed | Show stderr output and suggest troubleshooting steps |
