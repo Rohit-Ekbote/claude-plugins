@@ -1,208 +1,148 @@
 #!/usr/bin/env bash
-# transform-commands.sh - Command transformation and safety enforcement for rwenv
+# transform-commands.sh - Validation, safety enforcement, and auto-approval for rwenv
 #
-# This hook intercepts kubectl, helm, flux, gcloud, and vault commands,
-# transforms them to run through the dev container with explicit context/project flags,
-# and enforces read-only mode for protected environments.
+# This hook validates that kubectl/helm/flux/gcloud commands have correct
+# flags and wrapping for the current mode, enforces safety (read-only, gcloud
+# restrictions), and auto-approves valid commands.
+#
+# It does NOT transform commands — agents construct mode-aware commands themselves.
 #
 # Claude Code PreToolUse hooks receive JSON on stdin and must output JSON to modify tool input.
 
 set -euo pipefail
 
-# Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Source utilities
+# Source utilities (for write-detection functions)
 source "$PLUGIN_DIR/lib/rwenv-utils.sh"
 
-# Commands that trigger rwenv handling
+# Commands that trigger rwenv validation
 RWENV_COMMANDS="kubectl|helm|flux|gcloud|vault"
 
 # Read JSON input from stdin
 INPUT_JSON=$(cat)
 
-# Extract the command from the JSON input
-# Format: {"tool_name": "Bash", "tool_input": {"command": "...", "description": "...", ...}}
+# Extract the command
 ORIGINAL_CMD=$(echo "$INPUT_JSON" | jq -r '.tool_input.command // empty')
-
-# If no command found, pass through
 if [[ -z "$ORIGINAL_CMD" ]]; then
     exit 0
 fi
 
-# Extract the base command (first word)
-BASE_CMD=$(echo "$ORIGINAL_CMD" | awk '{print $1}')
+# Source the runtime env file
+RWENV_ENV_FILE="${PWD}/.claude/rwenv-env"
 
-# Check for dangerous docker commands that could affect the dev container
-if [[ "$BASE_CMD" == "docker" ]]; then
-    DEV_CONTAINER=$(get_dev_container 2>/dev/null) || true
+# Check if command contains rwenv-managed commands
+CONTAINS_RWENV_CMD=false
+if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z_-])($RWENV_COMMANDS)(\s|$)"; then
+    CONTAINS_RWENV_CMD=true
+fi
 
-    if [[ -n "$DEV_CONTAINER" ]]; then
-        # Dangerous docker operations that could stop/remove the dev container
-        DANGEROUS_DOCKER_OPS="stop|rm|remove|kill|restart|pause|update"
+# If no env file, only block rwenv commands — let everything else through
+if [[ ! -f "$RWENV_ENV_FILE" ]]; then
+    if [[ "$CONTAINS_RWENV_CMD" == "true" ]]; then
+        cat >&2 <<'EOF'
+ERROR: No rwenv configured for this project.
 
-        # Check if command targets the dev container
-        if echo "$ORIGINAL_CMD" | grep -qE "docker ($DANGEROUS_DOCKER_OPS).*$DEV_CONTAINER"; then
-            cat >&2 <<EOF
-ERROR: Cannot modify the dev container '$DEV_CONTAINER'.
+Run: /rwenv-set <environment>
+EOF
+        exit 2
+    fi
+    exit 0
+fi
+
+# Source env vars
+source "$RWENV_ENV_FILE"
+
+# --- Docker safety (container mode only) ---
+
+if [[ "$RWENV_MODE" == "container" ]] && [[ -n "${RWENV_DEV_CONTAINER:-}" ]]; then
+    DANGEROUS_DOCKER_OPS="stop|rm|remove|kill|restart|pause|update"
+
+    # Block dangerous docker ops targeting the dev container
+    if echo "$ORIGINAL_CMD" | grep -qE "docker ($DANGEROUS_DOCKER_OPS).*$RWENV_DEV_CONTAINER"; then
+        cat >&2 <<EOF
+ERROR: Cannot modify the dev container '$RWENV_DEV_CONTAINER'.
 
 Blocked command: $ORIGINAL_CMD
 
-The dev container is required for rwenv operations. Stopping, removing,
-or restarting it would break kubectl/helm/flux/gcloud command execution.
-
-If you need to restart the container, do so manually outside of Claude Code.
+The dev container is required for rwenv operations in container mode.
+If you need to restart it, do so manually outside of Claude Code.
 EOF
-            exit 2
-        fi
+        exit 2
+    fi
 
-        # Also check for docker commands that affect all containers
-        if echo "$ORIGINAL_CMD" | grep -qE "docker (stop|rm|kill|restart|pause) -a|docker container prune|docker system prune"; then
-            cat >&2 <<EOF
+    # Block bulk container operations
+    if echo "$ORIGINAL_CMD" | grep -qE "docker (stop|rm|kill|restart|pause) -a|docker container prune|docker system prune"; then
+        cat >&2 <<EOF
 ERROR: Cannot run bulk container operations.
 
 Blocked command: $ORIGINAL_CMD
 
-This could affect the dev container '$DEV_CONTAINER' which is required
-for rwenv operations.
-
+This could affect the dev container '$RWENV_DEV_CONTAINER'.
 Use specific container names instead of bulk operations.
-EOF
-            exit 2
-        fi
-
-        # Auto-approve docker exec commands to the dev container
-        # These are safe operations (kubectl, psql, etc.) running in the managed container
-        if echo "$ORIGINAL_CMD" | grep -qE "docker exec.*$DEV_CONTAINER"; then
-            echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
-            exit 0
-        fi
-    fi
-
-    # Allow other docker commands (like docker ps, docker logs, etc.) but don't auto-approve
-    exit 0
-fi
-
-# Check if this command should be handled by rwenv
-if ! echo "$BASE_CMD" | grep -qE "^($RWENV_COMMANDS)$"; then
-    # Not an rwenv command, pass through unchanged (exit 0 with no output)
-    exit 0
-fi
-
-# Get current working directory
-CWD="${PWD}"
-
-# Function to display no-rwenv error and exit
-show_no_rwenv_error() {
-    cat >&2 <<'EOF'
-ERROR: No rwenv configured for this project.
-
-Run: /rwenv-set <environment>
-
-Available environments:
-EOF
-
-    # List available rwenvs with name and description
-    if envs=$(load_envs 2>/dev/null); then
-        echo "$envs" | jq -r '.rwenvs | to_entries[] | "  \(.key) - \(.value.description) (\(.value.type))"' >&2
-    else
-        echo "  (none configured)" >&2
-    fi
-
-    echo >&2  # Empty line after environment list
-    exit 2  # Exit code 2 blocks command and shows stderr to Claude
-}
-
-# Check if rwenv is set for current directory
-# get_current_rwenv returns exit 1 if .claude/rwenv file doesn't exist
-if ! CURRENT_RWENV=$(get_current_rwenv "$CWD" 2>/dev/null); then
-    show_no_rwenv_error
-fi
-
-# Also handle case where file exists but is empty
-if [[ -z "$CURRENT_RWENV" ]]; then
-    show_no_rwenv_error
-fi
-
-# Load rwenv configuration
-RWENV_CONFIG=$(get_rwenv_by_name "$CURRENT_RWENV") || {
-    echo "ERROR: rwenv '$CURRENT_RWENV' not found in configuration." >&2
-    exit 2
-}
-
-# Extract rwenv properties
-RWENV_TYPE=$(echo "$RWENV_CONFIG" | jq -r '.type')
-KUBECONFIG_PATH=$(echo "$RWENV_CONFIG" | jq -r '.kubeconfigPath')
-K8S_CONTEXT=$(echo "$RWENV_CONFIG" | jq -r '.kubernetesContext')
-GCP_PROJECT=$(echo "$RWENV_CONFIG" | jq -r '.gcpProject // empty')
-READ_ONLY=$(echo "$RWENV_CONFIG" | jq -r '.readOnly')
-
-# Get execution mode
-USE_DEV_CONTAINER=$(get_use_dev_container)
-DEV_CONTAINER=$(get_dev_container)
-
-# Handle dev container mode
-if [[ "$USE_DEV_CONTAINER" == "true" ]]; then
-    # Check if dev container is running
-    if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${DEV_CONTAINER}$"; then
-        cat >&2 <<EOF
-Dev container '$DEV_CONTAINER' is not running.
-
-Options:
-1. Start the container and retry
-2. Switch to local mode (requires kubectl/helm/flux installed locally)
-
-To switch to local mode, run: /rwenv-local-mode
 EOF
         exit 2
     fi
 fi
 
-# Extract command arguments (everything after the base command)
-CMD_ARGS=$(echo "$ORIGINAL_CMD" | cut -d' ' -f2-)
-
-# Function to check and block write operations
-check_write_operation() {
-    local cmd="$1"
-    local args="$2"
-    local cmd_type="$3"
-
-    if [[ "$READ_ONLY" != "true" ]]; then
-        return 0  # Not read-only, allow everything
+# If command doesn't contain rwenv commands, auto-approve docker exec to dev container
+if [[ "$CONTAINS_RWENV_CMD" == "false" ]]; then
+    if [[ "$RWENV_MODE" == "container" ]] && [[ -n "${RWENV_DEV_CONTAINER:-}" ]]; then
+        if echo "$ORIGINAL_CMD" | grep -qE "docker exec.*$RWENV_DEV_CONTAINER"; then
+            echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+            exit 0
+        fi
     fi
+    exit 0
+fi
 
-    local is_write=false
+# --- Safety checks for rwenv commands ---
 
-    case "$cmd_type" in
-        kubectl)
-            if is_kubectl_write_operation "$args"; then
-                is_write=true
-            fi
-            ;;
-        helm)
-            if is_helm_write_operation "$args"; then
-                is_write=true
-            fi
-            ;;
-        flux)
-            if is_flux_write_operation "$args"; then
-                is_write=true
-            fi
-            ;;
-        gcloud)
-            # gcloud is ALWAYS read-only regardless of rwenv setting
-            if is_gcloud_write_operation "$args"; then
-                is_write=true
-            fi
-            ;;
-    esac
+# gcloud for k3s: block
+if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z_-])gcloud(\s)" && [[ "$RWENV_TYPE" == "k3s" ]]; then
+    cat >&2 <<EOF
+ERROR: gcloud not available for k3s rwenv '$RWENV_NAME'.
 
-    if [[ "$is_write" == "true" ]]; then
+gcloud commands require a GKE environment with a configured GCP project.
+Current rwenv type: k3s
+
+Use a GKE rwenv for gcloud operations.
+EOF
+    exit 2
+fi
+
+# gcloud writes: always block
+if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z_-])gcloud(\s)"; then
+    gcloud_args=$(echo "$ORIGINAL_CMD" | grep -oE "gcloud\s+.*" | head -1 | cut -d' ' -f2-)
+    if is_gcloud_write_operation "$gcloud_args"; then
         cat >&2 <<EOF
-ERROR: rwenv '$CURRENT_RWENV' is read-only. Cannot execute write operation.
+ERROR: gcloud write operations are blocked for safety.
 
-Blocked command: $cmd $args
+Blocked command: $ORIGINAL_CMD
+
+gcloud is always read-only regardless of rwenv settings.
+EOF
+        exit 2
+    fi
+fi
+
+# Read-only enforcement for kubectl/helm/flux
+if [[ "$RWENV_READ_ONLY" == "true" ]]; then
+    # Extract subcommand by stripping flags
+    strip_flags() {
+        echo "$1" | sed 's/--kubeconfig=[^ ]* *//g; s/--kube-context=[^ ]* *//g; s/--context=[^ ]* *//g; s/--project=[^ ]* *//g'
+    }
+
+    # Check kubectl write ops
+    if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z_-])kubectl(\s)"; then
+        kubectl_args=$(echo "$ORIGINAL_CMD" | grep -oE "kubectl\s+[^|;&\"]*" | head -1 | sed 's/kubectl\s*//')
+        kubectl_subcmd=$(strip_flags "$kubectl_args")
+        if is_kubectl_write_operation "$kubectl_subcmd"; then
+            cat >&2 <<EOF
+ERROR: rwenv '$RWENV_NAME' is read-only. Cannot execute write operation.
+
+Blocked command: $ORIGINAL_CMD
 
 Read-only environments block:
   - kubectl: apply, delete, patch, create, edit, replace, scale
@@ -211,97 +151,104 @@ Read-only environments block:
 
 Use a non-read-only environment for write operations.
 EOF
-        exit 2
+            exit 2
+        fi
     fi
-}
 
-# Function to check gcloud availability for k3s
-check_gcloud_for_k3s() {
-    if [[ "$BASE_CMD" == "gcloud" && "$RWENV_TYPE" == "k3s" ]]; then
+    # Check helm write ops
+    if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z_-])helm(\s)"; then
+        helm_args=$(echo "$ORIGINAL_CMD" | grep -oE "helm\s+[^|;&\"]*" | head -1 | sed 's/helm\s*//')
+        helm_subcmd=$(strip_flags "$helm_args")
+        if is_helm_write_operation "$helm_subcmd"; then
+            cat >&2 <<EOF
+ERROR: rwenv '$RWENV_NAME' is read-only. Cannot execute write operation.
+
+Blocked command: $ORIGINAL_CMD
+EOF
+            exit 2
+        fi
+    fi
+
+    # Check flux write ops
+    if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z_-])flux(\s)"; then
+        flux_args=$(echo "$ORIGINAL_CMD" | grep -oE "flux\s+[^|;&\"]*" | head -1 | sed 's/flux\s*//')
+        flux_subcmd=$(strip_flags "$flux_args")
+        if is_flux_write_operation "$flux_subcmd"; then
+            cat >&2 <<EOF
+ERROR: rwenv '$RWENV_NAME' is read-only. Cannot execute write operation.
+
+Blocked command: $ORIGINAL_CMD
+EOF
+            exit 2
+        fi
+    fi
+fi
+
+# --- Validation: ensure commands have required flags ---
+
+# Helper: check a command has required flags
+validate_has_flags() {
+    local cmd_name="$1"
+    local flag_pattern="$2"
+    if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z_-])${cmd_name}(\s)" && \
+       ! echo "$ORIGINAL_CMD" | grep -qE "${cmd_name}[^|;&]*${flag_pattern}"; then
         cat >&2 <<EOF
-ERROR: gcloud not available for k3s rwenv '$CURRENT_RWENV'.
+ERROR: $cmd_name command missing required flags.
 
-gcloud commands require a GKE environment with a configured GCP project.
+Current mode: $RWENV_MODE
 
-Current rwenv type: k3s
-Use a GKE rwenv for gcloud operations.
+Source .claude/rwenv-env to get the correct values:
+  RWENV_KUBECONFIG=$RWENV_KUBECONFIG
+  RWENV_CONTEXT=$RWENV_CONTEXT
 EOF
         exit 2
     fi
 }
 
-# Build the transformed command based on the base command
-build_transformed_command() {
-    local cmd_prefix=""
-    local kubeconfig_flag=""
-
-    if [[ "$USE_DEV_CONTAINER" == "true" ]]; then
-        # Dev container mode: use docker exec with full kubeconfig path
-        cmd_prefix="docker exec -i $DEV_CONTAINER"
-        kubeconfig_flag="--kubeconfig=$KUBECONFIG_PATH"
-    fi
-
-    case "$BASE_CMD" in
-        kubectl)
-            check_write_operation "$BASE_CMD" "$CMD_ARGS" "kubectl"
-            if [[ -n "$cmd_prefix" ]]; then
-                echo "$cmd_prefix kubectl $kubeconfig_flag --context=$K8S_CONTEXT $CMD_ARGS"
-            else
-                echo "kubectl --context=$K8S_CONTEXT $CMD_ARGS"
-            fi
-            ;;
-        helm)
-            check_write_operation "$BASE_CMD" "$CMD_ARGS" "helm"
-            if [[ -n "$cmd_prefix" ]]; then
-                echo "$cmd_prefix helm $kubeconfig_flag --kube-context=$K8S_CONTEXT $CMD_ARGS"
-            else
-                echo "helm --kube-context=$K8S_CONTEXT $CMD_ARGS"
-            fi
-            ;;
-        flux)
-            check_write_operation "$BASE_CMD" "$CMD_ARGS" "flux"
-            if [[ -n "$cmd_prefix" ]]; then
-                echo "$cmd_prefix flux $kubeconfig_flag --context=$K8S_CONTEXT $CMD_ARGS"
-            else
-                echo "flux --context=$K8S_CONTEXT $CMD_ARGS"
-            fi
-            ;;
-        gcloud)
-            check_gcloud_for_k3s
-            if is_gcloud_write_operation "$CMD_ARGS"; then
+# Container mode: validate docker exec wrapping
+if [[ "$RWENV_MODE" == "container" ]]; then
+    for cmd in kubectl helm flux; do
+        if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z_-])${cmd}(\s)"; then
+            if ! echo "$ORIGINAL_CMD" | grep -qE "docker exec.*$RWENV_DEV_CONTAINER.*${cmd}"; then
                 cat >&2 <<EOF
-ERROR: gcloud write operations are blocked for safety.
+ERROR: In container mode, $cmd must run inside docker exec $RWENV_DEV_CONTAINER.
 
-Blocked command: gcloud $CMD_ARGS
+Expected pattern:
+  docker exec -i $RWENV_DEV_CONTAINER $cmd --kubeconfig=\$RWENV_KUBECONFIG --context=\$RWENV_CONTEXT ...
 
-gcloud is always read-only regardless of rwenv settings.
+Source .claude/rwenv-env for correct values.
 EOF
                 exit 2
             fi
-            if [[ -n "$cmd_prefix" ]]; then
-                echo "$cmd_prefix gcloud --project=$GCP_PROJECT $CMD_ARGS"
-            else
-                echo "gcloud --project=$GCP_PROJECT $CMD_ARGS"
-            fi
-            ;;
-        vault)
-            if [[ -n "$cmd_prefix" ]]; then
-                echo "$cmd_prefix vault $CMD_ARGS"
-            else
-                echo "vault $CMD_ARGS"
-            fi
-            ;;
-        *)
-            echo "$ORIGINAL_CMD"
-            ;;
-    esac
-}
+        fi
+    done
+    if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z_-])gcloud(\s)"; then
+        if ! echo "$ORIGINAL_CMD" | grep -qE "docker exec.*$RWENV_DEV_CONTAINER.*gcloud"; then
+            cat >&2 <<EOF
+ERROR: In container mode, gcloud must run inside docker exec $RWENV_DEV_CONTAINER.
 
-# Main execution
-TRANSFORMED_CMD=$(build_transformed_command)
+Expected pattern:
+  docker exec -i $RWENV_DEV_CONTAINER gcloud --project=\$RWENV_GCP_PROJECT ...
+EOF
+            exit 2
+        fi
+    fi
+fi
 
-# Output JSON with the modified tool_input and auto-approve the command
-# Any command reaching this point has passed safety checks (write operations
-# in read-only mode already exit 2 above), so we can safely auto-approve
-echo "$INPUT_JSON" | jq --arg cmd "$TRANSFORMED_CMD" \
-    '.tool_input.command = $cmd | .hookSpecificOutput = {permissionDecision: "allow"}'
+# Both modes: validate required flags are present
+validate_has_flags "kubectl" "--kubeconfig=.*--context="
+validate_has_flags "helm" "--kubeconfig=.*--kube-context="
+validate_has_flags "flux" "--kubeconfig=.*--context="
+if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z_-])gcloud(\s)"; then
+    if ! echo "$ORIGINAL_CMD" | grep -qE "gcloud[^|;&]*--project="; then
+        cat >&2 <<EOF
+ERROR: gcloud command missing --project flag.
+
+Expected: gcloud --project=\$RWENV_GCP_PROJECT ...
+EOF
+        exit 2
+    fi
+fi
+
+# --- Auto-approve: command passed all checks ---
+echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
