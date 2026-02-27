@@ -92,22 +92,25 @@ validate_readonly_query() {
 fetch_password() {
     local namespace="$1"
     local secret_name="$2"
-    local rwenv_name="$3"
 
-    local kubeconfig context container
-    kubeconfig="$(get_kubeconfig_path "$rwenv_name")"
-    context="$(get_kubernetes_context "$rwenv_name")"
-    container="$(get_dev_container)"
-
-    # Fetch the password from the secret
     local password
-    password=$(docker exec "$container" kubectl \
-        --kubeconfig="$kubeconfig" \
-        --context="$context" \
-        get secret "$secret_name" -n "$namespace" \
-        -o jsonpath='{.data.password}' 2>/dev/null) || {
-        error "Cannot fetch credentials: secret '$secret_name' not found in namespace '$namespace'"
-    }
+    if [[ "$RWENV_MODE" == "container" ]]; then
+        password=$(docker exec "$RWENV_DEV_CONTAINER" kubectl \
+            --kubeconfig="$RWENV_KUBECONFIG" \
+            --context="$RWENV_CONTEXT" \
+            get secret "$secret_name" -n "$namespace" \
+            -o jsonpath='{.data.password}' 2>/dev/null) || {
+            error "Cannot fetch credentials: secret '$secret_name' not found in namespace '$namespace'"
+        }
+    else
+        password=$(kubectl \
+            --kubeconfig="$RWENV_KUBECONFIG" \
+            --context="$RWENV_CONTEXT" \
+            get secret "$secret_name" -n "$namespace" \
+            -o jsonpath='{.data.password}' 2>/dev/null) || {
+            error "Cannot fetch credentials: secret '$secret_name' not found in namespace '$namespace'"
+        }
+    fi
 
     # Decode base64
     echo "$password" | base64 -d
@@ -119,8 +122,7 @@ execute_query() {
     local query="$2"
     local format="$3"
     local timeout="$4"
-    local rwenv_name="$5"
-    local local_port=3105  # Use port already exposed by dev container
+    local local_port=3105
 
     # Parse database config
     local namespace secret_name pgbouncer_host database username
@@ -137,29 +139,7 @@ execute_query() {
     # Fetch password
     info "Fetching credentials from secret '$secret_name'..."
     local password
-    password=$(fetch_password "$namespace" "$secret_name" "$rwenv_name")
-
-    # Get kubectl settings
-    local kubeconfig context container
-    kubeconfig="$(get_kubeconfig_path "$rwenv_name")"
-    context="$(get_kubernetes_context "$rwenv_name")"
-    container="$(get_dev_container)"
-
-    # Start port-forward in background
-    info "Starting port-forward on port $local_port..."
-    docker exec "$container" kubectl \
-        --kubeconfig="$kubeconfig" \
-        --context="$context" \
-        port-forward --address 0.0.0.0 "svc/$pgbouncer_svc" "$local_port:5432" -n "$namespace" &
-    local pf_pid=$!
-
-    # Wait for port-forward to establish
-    sleep 2
-
-    # Verify port-forward is running
-    if ! kill -0 "$pf_pid" 2>/dev/null; then
-        error "Port-forward failed to start. Check if service '$pgbouncer_svc' exists in namespace '$namespace'."
-    fi
+    password=$(fetch_password "$namespace" "$secret_name")
 
     # Build psql options based on format
     local psql_opts=""
@@ -177,17 +157,46 @@ execute_query() {
             ;;
     esac
 
-    # Execute query
-    info "Executing query..."
-    local result=0
-    docker exec "$container" sh -c \
-        "PGPASSWORD='$password' timeout $timeout psql -h 127.0.0.1 -p $local_port -U $username -d $database $psql_opts -c \"$query\"" || result=$?
+    if [[ "$RWENV_MODE" == "container" ]]; then
+        # Container mode: port-forward + query inside dev container
+        info "Starting port-forward and executing query in container..."
+        local result=0
+        docker exec "$RWENV_DEV_CONTAINER" sh -c "
+kubectl --kubeconfig=$RWENV_KUBECONFIG --context=$RWENV_CONTEXT \
+  port-forward --address 0.0.0.0 svc/$pgbouncer_svc $local_port:5432 -n $namespace &
+sleep 3
+PGPASSWORD='$password' timeout $timeout psql -h 127.0.0.1 -p $local_port -U $username -d $database $psql_opts -c \"$query\"
+kill %1 2>/dev/null
+" || result=$?
+        return $result
+    else
+        # Local mode: port-forward locally, query locally
+        info "Starting port-forward on port $local_port..."
+        kubectl \
+            --kubeconfig="$RWENV_KUBECONFIG" \
+            --context="$RWENV_CONTEXT" \
+            port-forward "svc/$pgbouncer_svc" "$local_port:5432" -n "$namespace" &
+        local pf_pid=$!
 
-    # Cleanup port-forward
-    info "Cleaning up port-forward..."
-    kill "$pf_pid" 2>/dev/null || true
+        # Wait for port-forward to establish
+        sleep 3
 
-    return $result
+        # Verify port-forward is running
+        if ! kill -0 "$pf_pid" 2>/dev/null; then
+            error "Port-forward failed to start. Check if service '$pgbouncer_svc' exists in namespace '$namespace'."
+        fi
+
+        # Execute query locally
+        info "Executing query..."
+        local result=0
+        PGPASSWORD="$password" timeout "$timeout" psql -h localhost -p "$local_port" -U "$username" -d "$database" $psql_opts -c "$query" || result=$?
+
+        # Cleanup port-forward
+        info "Cleaning up port-forward..."
+        kill "$pf_pid" 2>/dev/null || true
+
+        return $result
+    fi
 }
 
 # Main
@@ -241,19 +250,22 @@ main() {
         error "SQL query is required. Use --help for usage."
     fi
 
-    # Check rwenv is set
-    local rwenv_name
-    rwenv_name=$(get_current_rwenv) || {
-        error "No rwenv set for current directory.
+    # Source runtime config
+    local rwenv_env_file="${PWD}/.claude/rwenv-env"
+    if [[ ! -f "$rwenv_env_file" ]]; then
+        error "No rwenv configured. Run /rwenv-set first.
 
 Use /rwenv-set <name> to select an environment.
 Use /rwenv-list to see available environments."
-    }
+    fi
+    source "$rwenv_env_file"
 
-    info "Using rwenv: $rwenv_name"
+    info "Using rwenv: $RWENV_NAME (mode: $RWENV_MODE)"
 
-    # Check dev container is running
-    check_dev_container || exit 1
+    # In container mode, verify dev container is running
+    if [[ "$RWENV_MODE" == "container" ]]; then
+        check_dev_container || exit 1
+    fi
 
     # Get database config
     local db_config
@@ -268,10 +280,10 @@ Use /rwenv-list to see available environments."
     }
 
     # Validate query based on rwenv settings
-    validate_readonly_query "$query" "$rwenv_name"
+    validate_readonly_query "$query" "$RWENV_NAME"
 
     # Execute query
-    execute_query "$db_config" "$query" "$format" "$timeout" "$rwenv_name"
+    execute_query "$db_config" "$query" "$format" "$timeout"
 }
 
 main "$@"
