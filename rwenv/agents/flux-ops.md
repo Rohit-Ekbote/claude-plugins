@@ -22,53 +22,44 @@ Handle Flux CD resource inspection and GitOps deployment workflows. Flux CLI com
 
 Before executing any operations:
 
-1. **Get current rwenv name** from `.claude/rwenv` file in the **working directory**
+1. **Source runtime config** from `.claude/rwenv-env` in the **working directory**
    ```bash
-   cat .claude/rwenv
+   source .claude/rwenv-env
    ```
-   - This file contains just the rwenv name (e.g., `rdebug`)
-   - **DO NOT** look in `~/.claude/rwenv/current/` or similar - the active rwenv is ALWAYS in `.claude/rwenv` in the project directory
    - If file doesn't exist, no rwenv is set - inform user and suggest `/rwenv-set`
+   - This provides: `RWENV_NAME`, `RWENV_MODE`, `RWENV_KUBECONFIG`, `RWENV_CONTEXT`, `RWENV_READ_ONLY`, `RWENV_DEV_CONTAINER`, `RWENV_FLUX_REPO`
 
-2. **Load rwenv configuration** from `${RWENV_CONFIG_DIR:-~/.claude/rwenv}/envs.json`
-   - Use the rwenv name from step 1 to look up the configuration
-   - Get `kubernetesContext`, `kubeconfigPath`, `readOnly`, `fluxGitRepo` settings
+2. **For Flux CLI commands**: commands run through dev container or locally based on `RWENV_MODE`
 
-3. **Load services catalog** from plugin's `data/services-catalog.json`
-   - Use for service → namespace/path lookups
-   - If catalog missing, warn but continue (can still operate without it)
-
-4. **For Flux CLI commands**: Check dev container is running
-   - Container name from `devContainer` field in envs.json
-
-5. **For git operations**: Ensure Flux repo is available
-   - Location: `${RWENV_CONFIG_DIR:-~/.claude/rwenv}/flux-repos/<rwenv-name>/`
+3. **For git operations**: Ensure Flux repo is available at `$RWENV_FLUX_REPO`
    - Clone if not present, pull if exists
 
 ## Command Execution Patterns
 
-### Flux CLI Commands (via dev container)
+### Flux CLI Commands
 
+**Container mode (`RWENV_MODE=container`):**
 ```bash
-docker exec -it <devContainer> flux \
-  --kubeconfig=<kubeconfigPath> \
-  --context=<kubernetesContext> \
+docker exec -i $RWENV_DEV_CONTAINER flux \
+  --kubeconfig=$RWENV_KUBECONFIG \
+  --context=$RWENV_CONTEXT \
   <command>
 ```
 
-### Git Operations (local machine)
+**Local mode (`RWENV_MODE=local`):**
+```bash
+flux \
+  --kubeconfig=$RWENV_KUBECONFIG \
+  --context=$RWENV_CONTEXT \
+  <command>
+```
+
+### Git Operations (always local)
 
 ```bash
-# Flux repo location
-cd ${RWENV_CONFIG_DIR:-~/.claude/rwenv}/flux-repos/<rwenv-name>/
-
-# Standard git commands
+cd $RWENV_FLUX_REPO
 git pull
-git checkout -b <branch>
-git add <files>
-git commit -m "<message>"
-git push origin <branch>
-gh pr create --title "<title>" --body "<body>"
+# ... standard git commands
 ```
 
 ## Capabilities
@@ -107,7 +98,7 @@ gh pr create --title "<title>" --body "<body>"
 
 ## Read-Only Mode Enforcement
 
-When `readOnly: true` in rwenv config:
+When `RWENV_READ_ONLY=true`:
 
 1. **Block Flux write operations** with clear error message:
    ```
@@ -134,20 +125,19 @@ When `readOnly: true` in rwenv config:
 
 ### Location
 
+The Flux repo path is provided by `$RWENV_FLUX_REPO` (sourced from `.claude/rwenv-env`).
+
 ```
-${RWENV_CONFIG_DIR:-~/.claude/rwenv}/flux-repos/
-├── dev/           # Cloned repo for 'dev' rwenv
-├── staging/       # Cloned repo for 'staging' rwenv
-└── prod/          # Cloned repo for 'prod' rwenv
+$RWENV_FLUX_REPO/    # Cloned repo for the active rwenv
 ```
 
 ### Behavior
 
 | Scenario | Action |
 |----------|--------|
-| First access | Clone from `fluxGitRepo` in rwenv config |
-| Subsequent access | `git pull` to update |
-| Missing `fluxGitRepo` | Error: "No fluxGitRepo configured for rwenv '<name>'. Add it to envs.json." |
+| First access | Clone from `fluxGitRepo` in rwenv config to `$RWENV_FLUX_REPO` |
+| Subsequent access | `cd $RWENV_FLUX_REPO && git pull` to update |
+| Missing `RWENV_FLUX_REPO` | Error: "No fluxGitRepo configured for rwenv '<name>'. Add it to envs.json." |
 | Dirty working tree | Warn: "Flux repo has uncommitted changes. Proceed? [y/N]" |
 
 ## Service Context Integration
@@ -163,7 +153,7 @@ Example:
 User: "update papi to v2.3.0"
 
 1. Lookup: papi → namespace: runwhen-local, fluxPath: clusters/rdebug/apps/papi/
-2. Find manifest at: ${RWENV_CONFIG_DIR:-~/.claude/rwenv}/flux-repos/<rwenv>/clusters/rdebug/apps/papi/
+2. Find manifest at: $RWENV_FLUX_REPO/clusters/rdebug/apps/papi/
 3. Edit values.yaml with new image tag
 4. Commit, push, create PR
 ```
@@ -180,24 +170,34 @@ Or run /services-mapping regenerate to rebuild the catalog.
 
 ## Common Workflows
 
+All Flux CLI examples below use a helper pattern. Choose based on `$RWENV_MODE`:
+
+```bash
+# Container mode
+FLUX_CMD="docker exec -i $RWENV_DEV_CONTAINER flux --kubeconfig=$RWENV_KUBECONFIG --context=$RWENV_CONTEXT"
+
+# Local mode
+FLUX_CMD="flux --kubeconfig=$RWENV_KUBECONFIG --context=$RWENV_CONTEXT"
+```
+
 ### Check Flux sync status
 
 ```bash
 # 1. Get overall status
-flux get all -A
+$FLUX_CMD get all -A
 
 # 2. Check specific kustomization
-flux get kustomization <name> -n flux-system
+$FLUX_CMD get kustomization <name> -n flux-system
 
 # 3. Check source sync
-flux get source git flux-system -n flux-system
+$FLUX_CMD get source git flux-system -n flux-system
 ```
 
 ### Deploy a new image version (not read-only)
 
 ```bash
 # 1. Ensure Flux repo is up to date
-cd ${RWENV_CONFIG_DIR:-~/.claude/rwenv}/flux-repos/<rwenv>/
+cd $RWENV_FLUX_REPO
 git pull
 
 # 2. Create deployment branch
@@ -216,29 +216,34 @@ git push -u origin deploy/papi-v2.3.0
 gh pr create --title "Deploy papi v2.3.0" --body "Updates papi image tag to v2.3.0"
 
 # 6. After PR merged, trigger reconciliation (or wait for auto-sync)
-flux reconcile kustomization apps-papi -n flux-system
+$FLUX_CMD reconcile kustomization apps-papi -n flux-system
 
 # 7. Monitor deployment
-flux get kustomization apps-papi -n flux-system --watch
+$FLUX_CMD get kustomization apps-papi -n flux-system --watch
 ```
 
 ### Investigate failed reconciliation
 
 ```bash
 # 1. Check kustomization status
-flux get kustomization <name> -n flux-system
+$FLUX_CMD get kustomization <name> -n flux-system
 
 # 2. Get detailed error
-flux get kustomization <name> -n flux-system -o yaml
+$FLUX_CMD get kustomization <name> -n flux-system -o yaml
 
-# 3. Check events
-kubectl get events -n flux-system --field-selector reason=ReconciliationFailed
+# 3. Check events (kubectl uses same mode-aware pattern)
+# Container mode:
+docker exec -i $RWENV_DEV_CONTAINER kubectl --kubeconfig=$RWENV_KUBECONFIG --context=$RWENV_CONTEXT \
+  get events -n flux-system --field-selector reason=ReconciliationFailed
+# Local mode:
+kubectl --kubeconfig=$RWENV_KUBECONFIG --context=$RWENV_CONTEXT \
+  get events -n flux-system --field-selector reason=ReconciliationFailed
 
 # 4. Check source status
-flux get source git flux-system -n flux-system
+$FLUX_CMD get source git flux-system -n flux-system
 
 # 5. If source issue, check Flux repo manually
-cd ${RWENV_CONFIG_DIR:-~/.claude/rwenv}/flux-repos/<rwenv>/
+cd $RWENV_FLUX_REPO
 git log --oneline -5
 git status
 ```
