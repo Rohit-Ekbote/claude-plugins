@@ -18,20 +18,15 @@ Handle Google Cloud Platform operations using the active rwenv context. **All gc
 
 Before executing any operations:
 
-1. **Get current rwenv name** from `.claude/rwenv` file in the **working directory**
+1. **Source runtime config** from `.claude/rwenv-env` in the **working directory**
    ```bash
-   cat .claude/rwenv
+   source .claude/rwenv-env
    ```
-   - This file contains just the rwenv name (e.g., `rdebug`)
-   - **DO NOT** look in `~/.claude/rwenv/current/` or similar - the active rwenv is ALWAYS in `.claude/rwenv` in the project directory
    - If file doesn't exist, no rwenv is set - inform user and suggest `/rwenv-set`
+   - This provides: `RWENV_NAME`, `RWENV_TYPE`, `RWENV_MODE`, `RWENV_GCP_PROJECT`, `RWENV_DEV_CONTAINER`
 
-2. **Verify rwenv type is GKE**
+2. **Verify rwenv type is GKE** (`RWENV_TYPE` must be `gke`)
    - gcloud is only available for GKE-type rwenvs
-   - k3s rwenvs do not have GCP project association
-
-3. **Load GCP project** from rwenv configuration
-   - Use `gcpProject` field from rwenv config
 
 ## Safety: Always Read-Only
 
@@ -60,11 +55,17 @@ To use gcloud, switch to a GKE rwenv:
 
 ## Command Execution Pattern
 
-All gcloud commands MUST be executed through the dev container with explicit project:
-
+**Container mode (`RWENV_MODE=container`):**
 ```bash
-docker exec -it <devContainer> gcloud \
-  --project=<gcpProject> \
+docker exec -i $RWENV_DEV_CONTAINER gcloud \
+  --project=$RWENV_GCP_PROJECT \
+  <command>
+```
+
+**Local mode (`RWENV_MODE=local`):**
+```bash
+gcloud \
+  --project=$RWENV_GCP_PROJECT \
   <command>
 ```
 
@@ -264,38 +265,36 @@ fi
 
 ## Usage Examples
 
-### List compute instances
+### List compute instances (container mode)
 ```
 User: "List all VMs in the project"
-Agent: Executes:
-  docker exec -it alpine-dev-container-zsh-rdebug \
-    gcloud --project=my-gcp-project compute instances list
+Agent: Sources .claude/rwenv-env, then executes:
+  docker exec -i $RWENV_DEV_CONTAINER \
+    gcloud --project=$RWENV_GCP_PROJECT compute instances list
 ```
 
-### Check GKE cluster status
+### Check GKE cluster status (local mode)
 ```
 User: "Show me the GKE clusters"
-Agent: Executes:
-  docker exec -it alpine-dev-container-zsh-rdebug \
-    gcloud --project=my-gcp-project container clusters list
+Agent: Sources .claude/rwenv-env, then executes:
+  gcloud --project=$RWENV_GCP_PROJECT container clusters list
 ```
 
-### Read application logs
+### Read application logs (container mode)
 ```
 User: "Get recent error logs from the papi service"
-Agent: Executes:
-  docker exec -it alpine-dev-container-zsh-rdebug \
-    gcloud --project=my-gcp-project logging read \
+Agent: Sources .claude/rwenv-env, then executes:
+  docker exec -i $RWENV_DEV_CONTAINER \
+    gcloud --project=$RWENV_GCP_PROJECT logging read \
     'resource.type="k8s_container" AND resource.labels.container_name="papi" AND severity>=ERROR' \
     --limit=50 --format=json
 ```
 
-### Get cluster credentials
+### Get cluster credentials (local mode)
 ```
 User: "Get credentials for the prod cluster"
-Agent: Executes:
-  docker exec -it alpine-dev-container-zsh-rdebug \
-    gcloud --project=my-gcp-project container clusters get-credentials \
+Agent: Sources .claude/rwenv-env, then executes:
+  gcloud --project=$RWENV_GCP_PROJECT container clusters get-credentials \
     prod-cluster --region=us-central1
 ```
 

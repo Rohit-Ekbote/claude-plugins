@@ -20,26 +20,20 @@ Handle PostgreSQL database queries using the active rwenv context. **All databas
 
 Before executing any operations:
 
-1. **Get current rwenv name** from `.claude/rwenv` file in the **working directory**
+1. **Source runtime config** from `.claude/rwenv-env` in the **working directory**
    ```bash
-   cat .claude/rwenv
+   source .claude/rwenv-env
    ```
-   - This file contains just the rwenv name (e.g., `rdebug`)
-   - **DO NOT** look in `~/.claude/rwenv/current/` or similar - the active rwenv is ALWAYS in `.claude/rwenv` in the project directory
    - If file doesn't exist, no rwenv is set - inform user and suggest `/rwenv-set`
+   - This provides: `RWENV_NAME`, `RWENV_MODE`, `RWENV_KUBECONFIG`, `RWENV_CONTEXT`, `RWENV_READ_ONLY`, `RWENV_DEV_CONTAINER`
 
-2. **Load rwenv configuration** from `${RWENV_CONFIG_DIR:-~/.claude/rwenv}/envs.json`
-   - Use the rwenv name from step 1 to look up the configuration
-   - Get `kubernetesContext`, `kubeconfigPath` settings
-   - These are required to access Kubernetes secrets for credentials
-
-3. **Load database configuration** from `data/infra-catalog.json`
-   - Databases are defined in the plugin's infra catalog
+2. **Load database configuration** from plugin's `data/infra-catalog.json`
    - Each database has: namespace, secretName, pgbouncerHost, database, username
 
-4. **Fetch credentials** from Kubernetes secret at runtime
+3. **Fetch credentials** from Kubernetes secret at runtime
    - Never store or cache passwords
-   - Use kubeconfig/context from step 2 to access secrets
+   - Use `RWENV_KUBECONFIG`/`RWENV_CONTEXT` to access secrets
+   - Command pattern depends on `RWENV_MODE`
 
 ## Safety Enforcement
 
@@ -111,11 +105,11 @@ Databases are configured in `data/infra-catalog.json`:
 
 ## Command Execution Pattern
 
-**Always use port-forward approach via `pg_query.sh` script.**
+**Always use port-forward approach. The `pg_query.sh` script is mode-aware and selects the correct execution pattern based on `RWENV_MODE`.**
 
 ### Recommended Method: pg_query.sh Script
 
-Use the provided script which handles validation, port-forward, and cleanup:
+Use the provided script which handles validation, port-forward, and cleanup. It reads `RWENV_MODE` from `.claude/rwenv-env` and adapts automatically:
 
 ```bash
 # From the plugin directory
@@ -127,30 +121,48 @@ Use the provided script which handles validation, port-forward, and cleanup:
 ./scripts/pg_query.sh usearch "SELECT COUNT(*) FROM documents" --format=json
 ```
 
-### Manual Method (If Needed)
+### Manual Method: Container Mode (`RWENV_MODE=container`)
 
-Step-by-step port-forward approach:
+When the rwenv uses a dev container for cluster access:
 
 ```bash
-# 1. Get password from K8s secret
-PASSWORD=$(docker exec <container> kubectl --kubeconfig=<path> --context=<ctx> \
-  get secret <secretName> -n <namespace> -o jsonpath='{.data.password}' | base64 -d)
+# 1. Get password
+PASSWORD=$(docker exec $RWENV_DEV_CONTAINER kubectl \
+  --kubeconfig=$RWENV_KUBECONFIG --context=$RWENV_CONTEXT \
+  get secret <secretName> -n <namespace> \
+  -o jsonpath='{.data.password}' | base64 -d)
 
-# 2. Port-forward (binds to 0.0.0.0:3105, accessible from host)
-docker exec <container> kubectl --kubeconfig=<path> --context=<ctx> \
+# 2. Port-forward + query in container
+docker exec $RWENV_DEV_CONTAINER sh -c "
+kubectl --kubeconfig=$RWENV_KUBECONFIG --context=$RWENV_CONTEXT \
   port-forward --address 0.0.0.0 svc/<pgbouncer-svc> 3105:5432 -n <namespace> &
+sleep 3
+PGPASSWORD='$PASSWORD' psql -h 127.0.0.1 -p 3105 -U <user> -d <db> -c '<query>'
+kill %1 2>/dev/null
+"
+```
 
-# 3. Wait for port-forward to establish
-sleep 2
+### Manual Method: Local Mode (`RWENV_MODE=local`)
 
-# 4. Run query (from container)
-docker exec <container> sh -c "PGPASSWORD='$PASSWORD' psql -h 127.0.0.1 -p 3105 -U <user> -d <db> -c '<query>'"
+When the rwenv uses local kubeconfig directly (e.g., k3s clusters):
 
-# Or from host (if psql installed):
-# PGPASSWORD="$PASSWORD" psql -h localhost -p 3105 -U <user> -d <db> -c '<query>'
+```bash
+# 1. Get password
+PASSWORD=$(kubectl --kubeconfig=$RWENV_KUBECONFIG --context=$RWENV_CONTEXT \
+  get secret <secretName> -n <namespace> \
+  -o jsonpath='{.data.password}' | base64 -d)
 
-# 5. Cleanup
-pkill -f "port-forward.*<pgbouncer-svc>"
+# 2. Port-forward in background
+kubectl --kubeconfig=$RWENV_KUBECONFIG --context=$RWENV_CONTEXT \
+  port-forward svc/<pgbouncer-svc> 3105:5432 -n <namespace> &
+PF_PID=$!
+sleep 3
+
+# 3. Query locally
+PGPASSWORD="$PASSWORD" psql -h localhost -p 3105 -U <user> -d <db> -c '<query>'
+
+# 4. Cleanup
+kill $PF_PID 2>/dev/null
 ```
 
 ### Safety Enforcement
@@ -259,17 +271,26 @@ fi
 
 ## Usage Examples
 
-### Query the core database
+### Query the core database (container mode)
 ```
 User: "Query the core database for recent users"
-Agent: Fetches credentials, executes:
+Agent: Sources .claude/rwenv-env → RWENV_MODE=container
+  Fetches credentials via docker exec, executes in container:
+  SELECT id, email, created_at FROM users ORDER BY created_at DESC LIMIT 20
+```
+
+### Query the core database (local mode)
+```
+User: "Query the core database for recent users"
+Agent: Sources .claude/rwenv-env → RWENV_MODE=local
+  Fetches credentials via local kubectl, port-forwards locally:
   SELECT id, email, created_at FROM users ORDER BY created_at DESC LIMIT 20
 ```
 
 ### Inspect table schema
 ```
 User: "What columns are in the orders table?"
-Agent: Executes:
+Agent: Sources .claude/rwenv-env, uses RWENV_MODE to select execution pattern:
   SELECT column_name, data_type, is_nullable
   FROM information_schema.columns
   WHERE table_name = 'orders'
@@ -278,6 +299,6 @@ Agent: Executes:
 ### Count records
 ```
 User: "How many pending orders are there?"
-Agent: Executes:
+Agent: Sources .claude/rwenv-env, uses RWENV_MODE to select execution pattern:
   SELECT COUNT(*) FROM orders WHERE status = 'pending'
 ```

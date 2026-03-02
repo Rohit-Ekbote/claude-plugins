@@ -46,11 +46,11 @@ What is the GCP project ID for this environment?
 Example: my-company-prod-12345
 ```
 
-### Step 4: Kubeconfig Path
+### Step 4: Container Kubeconfig Path
 
-Ask for the kubeconfig path inside the dev container:
+Ask for the kubeconfig path **inside the dev container**:
 ```
-What is the kubeconfig path (inside the dev container)?
+What is the kubeconfig path inside the dev container?
 
 Default: /root/.kube/config
 Examples:
@@ -59,21 +59,51 @@ Examples:
   - /root/.kube/custom-cluster.yaml
 ```
 
+This will be stored in the `container` sub-object.
+
 Use AskUserQuestion with:
 - "Use default (/root/.kube/config)"
 - "Specify custom path"
 
-### Step 5: Kubernetes Context
+### Step 5: Container Kubernetes Context
 
-Ask for the context name:
+Ask for the context name **for the dev container**:
 ```
-What is the Kubernetes context name?
+What is the Kubernetes context name inside the dev container?
 
 This should match a context in your kubeconfig.
 Run 'kubectl config get-contexts' in the dev container to list available contexts.
 
 Examples: rdebug-61, gke_myproject_us-central1_cluster-1
 ```
+
+This will be stored in the `container` sub-object.
+
+### Step 5b: Local Kubeconfig (Optional)
+
+Ask if they want to configure local mode now:
+
+Use AskUserQuestion:
+- "Yes, configure local kubeconfig path and context now"
+- "No, skip (can configure later with /rwenv-local-mode)"
+
+If yes:
+- Ask for the local kubeconfig path:
+  ```
+  What is the kubeconfig path on your local machine?
+
+  Default: ~/.kube/config
+  ```
+- Ask for the local context name:
+  ```
+  What is the Kubernetes context name on your local machine?
+
+  Default: (same as container context)
+  ```
+- Store both values in the `local` sub-object
+
+If no:
+- Set `local` to `null` in envs.json
 
 ### Step 6: Description
 
@@ -134,9 +164,26 @@ Use AskUserQuestion:
 ### Step 11: Save and Confirm
 
 1. Read existing `envs.json` (or create new if doesn't exist)
-2. Add the new rwenv to the `rwenvs` object
+2. Add the new rwenv to the `rwenvs` object using the `container`/`local` sub-object schema:
+   ```json
+   {
+     "rdebug": {
+       "type": "k3s",
+       "description": "Local k3s development cluster",
+       "container": {
+         "kubeconfigPath": "/root/.kube/config",
+         "kubernetesContext": "rdebug-61"
+       },
+       "local": null,
+       "readOnly": false,
+       "gcpProject": "my-project-12345"
+     }
+   }
+   ```
+   - `container` always contains `kubeconfigPath` and `kubernetesContext`
+   - `local` is either `null` or an object with `kubeconfigPath` and `kubernetesContext`
 3. Write updated config back to file
-4. If "set as active" was chosen, write the rwenv name to `.claude/rwenv` in the current project directory (auto-gitignored)
+4. If "set as active" was chosen, write the rwenv name to `.claude/rwenv` in the current project directory (auto-gitignored) by calling `write_rwenv_env()`
 
 Display confirmation:
 ```
@@ -146,11 +193,18 @@ Configuration:
   Name:        staging
   Type:        gke
   Description: Staging GKE cluster
-  Context:     gke_myproject_us-central1_staging
-  Kubeconfig:  /root/.kube/config
   Read-Only:   No
   GCP Project: myproject-staging
   Flux Repo:   https://github.com/org/flux-staging
+
+Container:
+  Kubeconfig:  /root/.kube/config
+  Context:     gke_myproject_us-central1_staging
+
+Local:
+  Kubeconfig:  ~/.kube/config
+  Context:     gke_myproject_us-central1_staging
+  (or "Not configured" if local is null)
 
 Services:
   papi: https://papi.staging.example.com
