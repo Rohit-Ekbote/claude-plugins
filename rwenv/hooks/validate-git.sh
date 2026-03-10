@@ -33,14 +33,14 @@ ORIGINAL_CMD=$(echo "$INPUT_JSON" | jq -r '.tool_input.command // empty')
 
 # If no command found, auto-approve
 if [[ -z "$ORIGINAL_CMD" ]]; then
-    echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+    echo '{"hookSpecificOutput": {"permissionDecision": "allow"}}'
     exit 0
 fi
 
 # Check if command contains any git operations (handles compound commands)
 if ! echo "$ORIGINAL_CMD" | grep -qE "(^|&&|;|\|\|)\s*git "; then
     # No git command — auto-approve so this hook doesn't block other hooks' approval
-    echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+    echo '{"hookSpecificOutput": {"permissionDecision": "allow"}}'
     exit 0
 fi
 
@@ -455,10 +455,10 @@ done < <(echo "$ORIGINAL_CMD" | sed 's/&&/\n/g; s/;/\n/g; s/||/\n/g')
 
 # Auto-approve git commands that passed all safety checks
 if [[ "$HAS_GIT_CMD" == "true" ]]; then
-    echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+    echo '{"hookSpecificOutput": {"permissionDecision": "allow"}}'
     exit 0
 fi
 
 # No git commands — auto-approve so this hook doesn't block other hooks' approval
-echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+echo '{"hookSpecificOutput": {"permissionDecision": "allow"}}'
 exit 0
