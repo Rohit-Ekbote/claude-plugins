@@ -26,7 +26,7 @@ INPUT_JSON=$(cat)
 # Extract the command
 ORIGINAL_CMD=$(echo "$INPUT_JSON" | jq -r '.tool_input.command // empty')
 if [[ -z "$ORIGINAL_CMD" ]]; then
-    echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+    echo '{"hookSpecificOutput": {"permissionDecision": "allow"}}'
     exit 0
 fi
 
@@ -49,7 +49,7 @@ Run: /rwenv-set <environment>
 EOF
         exit 2
     fi
-    echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+    echo '{"hookSpecificOutput": {"permissionDecision": "allow"}}'
     exit 0
 fi
 
@@ -92,17 +92,17 @@ fi
 if [[ "$CONTAINS_RWENV_CMD" == "false" ]]; then
     # Auto-approve rwenv plugin scripts (e.g., pg_query.sh) — they enforce their own safety
     if echo "$ORIGINAL_CMD" | grep -qE "rwenv/scripts/"; then
-        echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+        echo '{"hookSpecificOutput": {"permissionDecision": "allow"}}'
         exit 0
     fi
     # Auto-approve docker exec to dev container
     if [[ "$RWENV_MODE" == "container" ]] && [[ -n "${RWENV_DEV_CONTAINER:-}" ]]; then
         if echo "$ORIGINAL_CMD" | grep -qE "docker exec.*$RWENV_DEV_CONTAINER"; then
-            echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+            echo '{"hookSpecificOutput": {"permissionDecision": "allow"}}'
             exit 0
         fi
     fi
-    echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+    echo '{"hookSpecificOutput": {"permissionDecision": "allow"}}'
     exit 0
 fi
 
@@ -260,4 +260,4 @@ EOF
 fi
 
 # --- Auto-approve: command passed all checks ---
-echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+echo '{"hookSpecificOutput": {"permissionDecision": "allow"}}'
