@@ -125,6 +125,39 @@ validate_psql_query "COPY x TO '/tmp/f'" 2>/dev/null; assert_rc $? 1 "COPY TO bl
 validate_psql_query "SELECT 1; DROP TABLE x" 2>/dev/null; assert_rc $? 1 "multi-stmt with DDL blocked"
 set -e
 
+echo "== set_rwlenv_for_dir + write_rwlenv_env =="
+TMPDIR_TEST=$(mktemp -d)
+trap "rm -rf $TMPDIR_TEST" EXIT
+git -C "$TMPDIR_TEST" init -q
+
+set_rwlenv_for_dir "$TMPDIR_TEST" "helm-dev"
+assert_eq "$(cat "$TMPDIR_TEST/.claude/rwl-env")" "helm-dev" "writes .claude/rwl-env"
+
+write_rwlenv_env "$TMPDIR_TEST" "helm-dev"
+assert_eq "$(grep '^RWLENV_NAME=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "helm-dev" "RWLENV_NAME set"
+assert_eq "$(grep '^RWLENV_NAMESPACE=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "runwhen" "RWLENV_NAMESPACE set"
+assert_eq "$(grep '^RWLENV_RELEASE=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "rwl" "RWLENV_RELEASE set"
+assert_eq "$(grep '^RWLENV_READ_ONLY=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "false" "RWLENV_READ_ONLY false"
+assert_eq "$(grep '^RWLENV_CHART_REPO=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "oci://registry.example.com/charts" "RWLENV_CHART_REPO set"
+
+write_rwlenv_env "$TMPDIR_TEST" "helm-staging"
+assert_eq "$(grep '^RWLENV_READ_ONLY=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "true" "RWLENV_READ_ONLY true for staging"
+
+# Verify unknown entry fails — needs set +e/-e guard since under set -e the rc=1 would abort
+set +e
+write_rwlenv_env "$TMPDIR_TEST" "nonexistent" 2>/dev/null; assert_rc $? 1 "unknown rwlenv fails"
+set -e
+
+# Verify gitignore was populated
+assert_eq "$(grep -c '^.claude/rwl-env$' "$TMPDIR_TEST/.gitignore")" "1" ".gitignore contains .claude/rwl-env once"
+assert_eq "$(grep -c '^.claude/rwl-env-env$' "$TMPDIR_TEST/.gitignore")" "1" ".gitignore contains .claude/rwl-env-env once"
+
+# Idempotency: call again, count should still be 1
+set_rwlenv_for_dir "$TMPDIR_TEST" "helm-dev"
+write_rwlenv_env "$TMPDIR_TEST" "helm-dev"
+assert_eq "$(grep -c '^.claude/rwl-env$' "$TMPDIR_TEST/.gitignore")" "1" ".gitignore .claude/rwl-env still 1 after second call (idempotent)"
+assert_eq "$(grep -c '^.claude/rwl-env-env$' "$TMPDIR_TEST/.gitignore")" "1" ".gitignore .claude/rwl-env-env still 1 after second call (idempotent)"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]
