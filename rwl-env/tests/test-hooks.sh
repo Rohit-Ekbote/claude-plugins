@@ -102,6 +102,34 @@ assert_allow "helm --kubeconfig=/tmp/staging-kubeconfig --kube-context=staging-c
 assert_block "helm --kubeconfig=/tmp/staging-kubeconfig --kube-context=staging-ctx upgrade rwl chart --reuse-values -n runwhen" "helm upgrade on readOnly blocked"
 assert_block "helm --kubeconfig=/tmp/staging-kubeconfig --kube-context=staging-ctx rollback rwl 7 -n runwhen" "helm rollback on readOnly blocked"
 
+echo "== Kubectl validation (helm-dev) =="
+use_fixture helm-dev
+
+# Reads allowed
+assert_allow "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev get pods -n runwhen" "kubectl get pods allowed"
+assert_allow "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev logs my-pod -n runwhen" "kubectl logs allowed"
+assert_allow "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev describe deploy/papi -n runwhen" "kubectl describe allowed"
+assert_allow "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev get events -n runwhen --sort-by=.lastTimestamp" "kubectl get events allowed"
+assert_allow "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev rollout status deploy/papi -n runwhen" "kubectl rollout status allowed"
+
+# Writes always blocked (even when not readOnly)
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev apply -f x.yaml -n runwhen" "kubectl apply blocked"
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev delete pod my-pod -n runwhen" "kubectl delete blocked"
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev patch deploy/papi --patch='{}' -n runwhen" "kubectl patch blocked"
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev edit deploy/papi -n runwhen" "kubectl edit blocked"
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev scale deploy/papi --replicas=3 -n runwhen" "kubectl scale blocked"
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev rollout restart deploy/papi -n runwhen" "kubectl rollout restart blocked"
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev set image deploy/papi papi=newtag -n runwhen" "kubectl set image blocked"
+
+# Exec and port-forward allowed (reads from rwl-env perspective)
+assert_allow "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev exec my-pod -n runwhen -- ls" "kubectl exec interactive allowed"
+assert_allow "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev port-forward svc/papi 8080:8080 -n runwhen" "kubectl port-forward allowed"
+
+# Flag mismatches
+assert_block "kubectl --kubeconfig=/tmp/wrong --context=k3d-rwl-dev get pods -n runwhen" "wrong kubeconfig blocked"
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=wrong get pods -n runwhen" "wrong context blocked"
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev get pods -n elsewhere" "wrong namespace blocked"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

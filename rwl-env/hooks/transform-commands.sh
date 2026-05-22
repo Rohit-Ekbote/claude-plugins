@@ -136,7 +136,51 @@ if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z0-9_-])helm([[:space:]]|$)"; then
     allow
 fi
 
-# --- Kubectl decision (added in Task 8) ---
+# --- Kubectl decision ---
+if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z0-9_-])kubectl([[:space:]]|$)"; then
+    # Escape rwl-env values for safe regex embedding
+    kc_esc=$(escape_regex "$RWLENV_KUBECONFIG")
+    ctx_esc=$(escape_regex "$RWLENV_CONTEXT")
+    ns_esc=$(escape_regex "$RWLENV_NAMESPACE")
+
+    # Required flags
+    echo "$ORIGINAL_CMD" | grep -qE -- "--kubeconfig=${kc_esc}([[:space:]]|$)" \
+        || block "kubectl command missing or wrong --kubeconfig for rwl-env '$RWLENV_NAME' (expected $RWLENV_KUBECONFIG)."
+    echo "$ORIGINAL_CMD" | grep -qE -- "--context=${ctx_esc}([[:space:]]|$)" \
+        || block "kubectl command missing or wrong --context for rwl-env '$RWLENV_NAME' (expected $RWLENV_CONTEXT)."
+    echo "$ORIGINAL_CMD" | grep -qE -- "(-n|--namespace)[[:space:]]+${ns_esc}([[:space:]]|$)" \
+        || block "kubectl command missing or wrong -n/--namespace for rwl-env '$RWLENV_NAME' (expected $RWLENV_NAMESPACE)."
+
+    # Extract kubectl subcommand (first non-flag token after kubectl, possibly 2-word)
+    kubectl_sub=$(echo "$ORIGINAL_CMD" \
+        | sed 's/.*[^a-zA-Z0-9_-]kubectl/kubectl/' \
+        | awk '{
+            for (i=2; i<=NF; i++) {
+                if ($i ~ /^-/) {
+                    if ($i !~ /=/) i++
+                    continue
+                }
+                kscmd = $i
+                if (NF >= i+1 && $(i+1) !~ /^-/) kscmd = kscmd " " $(i+1)
+                print kscmd; exit
+            }
+        }')
+
+    # Writes always blocked (only helm-ops can mutate). exec is exempt (handled in T9).
+    if is_kubectl_write_operation "$kubectl_sub"; then
+        case "$kubectl_sub" in
+            exec*)
+                : # exec extras handled in Task 9
+                ;;
+            *)
+                block "kubectl '$kubectl_sub' not allowed for rwl-env '$RWLENV_NAME'; mutations must go through helm-ops (helm upgrade / rollback)."
+                ;;
+        esac
+    fi
+
+    allow
+fi
+
 # --- Psql decision (added in Task 9) ---
 
 allow
