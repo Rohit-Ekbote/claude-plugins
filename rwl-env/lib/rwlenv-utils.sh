@@ -116,3 +116,56 @@ find_context_across_files() {
         done <<< "$files"
     fi
 }
+
+# --- Write detection ---
+
+# Returns 0 if the helm subcommand is a write (upgrade/rollback/install/uninstall/etc).
+is_helm_write_operation() {
+    local cmd="$1"
+    local write_ops="install|upgrade|uninstall|rollback|delete|repo add|repo remove|dependency"
+    echo "$cmd" | grep -qE "^($write_ops)([[:space:]]|$)"
+}
+
+# Returns 0 if the helm subcommand is FORBIDDEN by rwl-env (out of scope for this plugin).
+is_helm_forbidden_operation() {
+    local cmd="$1"
+    local forbidden="install|uninstall|delete|repo add|repo remove|dependency"
+    echo "$cmd" | grep -qE "^($forbidden)([[:space:]]|$)"
+}
+
+# Returns 0 if the kubectl subcommand is a write.
+# NOTE: "rollout status" and "rollout history" are reads; "rollout restart" is a write.
+is_kubectl_write_operation() {
+    local cmd="$1"
+    # rollout subcommands: writes (pause|restart|resume|undo) checked before reads (history|status).
+    # Bare `rollout` with no subcommand falls through and is treated as not-a-write (no match in general pattern).
+    if echo "$cmd" | grep -qE "^rollout[[:space:]]+(pause|restart|resume|undo)([[:space:]]|$)"; then return 0; fi
+    if echo "$cmd" | grep -qE "^rollout[[:space:]]+(history|status)([[:space:]]|$)"; then return 1; fi
+    local write_ops="apply|delete|patch|create|edit|replace|scale|set[[:space:]]+image|set[[:space:]]+resources|set[[:space:]]+env|label|annotate|taint|cordon|uncordon|drain|exec"
+    echo "$cmd" | grep -qE "^($write_ops)([[:space:]]|$)"
+}
+
+# Validate a SQL query for read-only safety. rc=0 if safe, rc=1 with stderr if blocked.
+# Always blocks DDL, DML, COPY ... TO regardless of any readOnly flag.
+validate_psql_query() {
+    local query="$1"
+    local query_upper
+    query_upper=$(echo "$query" | tr '[:lower:]' '[:upper:]')
+
+    local ddl="CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|VACUUM|REINDEX|CLUSTER"
+    local dml="INSERT|UPDATE|DELETE|MERGE|UPSERT"
+
+    if echo "$query_upper" | grep -qE "(^|[^A-Z])($ddl)([^A-Z]|$)"; then
+        echo "ERROR: DDL blocked. rwl-env db access is read-only. Query: $query" >&2
+        return 1
+    fi
+    if echo "$query_upper" | grep -qE "(^|[^A-Z])($dml)([^A-Z]|$)"; then
+        echo "ERROR: DML blocked. rwl-env db access is read-only. Query: $query" >&2
+        return 1
+    fi
+    if echo "$query_upper" | grep -qE "COPY.*TO"; then
+        echo "ERROR: COPY TO blocked. File writes not allowed." >&2
+        return 1
+    fi
+    return 0
+}
