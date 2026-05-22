@@ -253,6 +253,12 @@ ENVEOF
     fi
 }
 
+# Escape ERE metacharacters in a string so it can be safely embedded in a grep -E pattern.
+# Escapes: . [ ] ( ) { } ^ $ * + ? | \ /
+escape_regex() {
+    printf '%s' "$1" | sed 's/[][\\.|^$()*+?{}/]/\\&/g'
+}
+
 # Format details of an rwl-env for display (used by /rwl-env-cur).
 format_rwlenv_details() {
     local name="$1"

@@ -66,6 +66,42 @@ use_fixture helm-dev
 assert_allow "ls -la" "ls always allowed"
 assert_allow "git status" "git always allowed"
 
+echo "== Helm validation (helm-dev, read-write) =="
+use_fixture helm-dev
+
+# Allowed reads
+assert_allow "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev get values rwl -n runwhen" "helm get values allowed"
+assert_allow "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev history rwl -n runwhen" "helm history allowed"
+assert_allow "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev status rwl -n runwhen" "helm status allowed"
+
+# Allowed writes (read-write env)
+assert_allow "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev upgrade rwl oci://registry.example.com/charts/runwhen-platform --reuse-values -n runwhen" "helm upgrade allowed when not readOnly"
+assert_allow "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev rollback rwl 7 -n runwhen" "helm rollback allowed when not readOnly"
+
+# Forbidden operations
+assert_block "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev install rwl chart -n runwhen" "helm install forbidden (out of scope)"
+assert_block "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev uninstall rwl -n runwhen" "helm uninstall forbidden"
+assert_block "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev delete rwl -n runwhen" "helm delete forbidden"
+assert_block "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev repo add foo https://example.com -n runwhen" "helm repo add forbidden"
+assert_block "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev repo remove foo -n runwhen" "helm repo remove forbidden"
+assert_block "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev dependency build -n runwhen" "helm dependency forbidden"
+
+# Flag mismatches
+assert_block "helm --kubeconfig=/tmp/wrong --kube-context=k3d-rwl-dev get values rwl -n runwhen" "wrong kubeconfig blocked"
+assert_block "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=wrong-ctx get values rwl -n runwhen" "wrong context blocked"
+assert_block "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev get values rwl -n other-ns" "wrong namespace blocked"
+assert_block "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev upgrade other-release chart --reuse-values -n runwhen" "wrong release name blocked"
+
+# Missing required flags
+assert_block "helm get values rwl -n runwhen" "missing --kubeconfig and --kube-context blocked"
+assert_block "helm --kubeconfig=/tmp/test-kubeconfig get values rwl -n runwhen" "missing --kube-context blocked"
+
+echo "== Helm validation (helm-staging, read-only) =="
+use_fixture helm-staging
+assert_allow "helm --kubeconfig=/tmp/staging-kubeconfig --kube-context=staging-ctx get values rwl -n runwhen" "read on readOnly env allowed"
+assert_block "helm --kubeconfig=/tmp/staging-kubeconfig --kube-context=staging-ctx upgrade rwl chart --reuse-values -n runwhen" "helm upgrade on readOnly blocked"
+assert_block "helm --kubeconfig=/tmp/staging-kubeconfig --kube-context=staging-ctx rollback rwl 7 -n runwhen" "helm rollback on readOnly blocked"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

@@ -63,6 +63,80 @@ fi
 # shellcheck source=/dev/null
 source "$ENV_FILE"
 
-# Validation + classification logic added in subsequent tasks (T7, T8, T9).
-# For now, allow everything matched so the engagement tests pass.
+# --- Helm decision ---
+if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z0-9_-])helm([[:space:]]|$)"; then
+    # Extract helm subcommand. Anything after `helm` and any flags up to first non-flag token.
+    # Only "get" takes a 2-word subcommand (get values, get manifest, etc).
+    helm_sub=$(echo "$ORIGINAL_CMD" \
+        | sed 's/.*[^a-zA-Z0-9_-]helm/helm/' \
+        | sed 's/^helm[[:space:]]*//' \
+        | awk '{
+            for (i=1; i<=NF; i++) {
+                if ($i ~ /^-/) {
+                    # skip flag; eat next token if --foo without =
+                    if ($i !~ /=/) i++
+                    continue
+                }
+                # First non-flag token is the subcommand
+                scmd = $i
+                if (NF >= i+1 && ($i == "get" || $i == "repo") && $(i+1) !~ /^-/) scmd = scmd " " $(i+1)
+                print scmd
+                exit
+            }
+        }')
+
+    # Forbidden operations (install, uninstall, delete, repo add/remove, dependency)
+    if is_helm_forbidden_operation "$helm_sub"; then
+        block "helm '$helm_sub' is out of scope for this plugin; use the helm CLI directly outside Claude Code."
+    fi
+
+    # Required flags
+    kc_esc=$(escape_regex "$RWLENV_KUBECONFIG")
+    ctx_esc=$(escape_regex "$RWLENV_CONTEXT")
+    ns_esc=$(escape_regex "$RWLENV_NAMESPACE")
+    echo "$ORIGINAL_CMD" | grep -qE -- "--kubeconfig=${kc_esc}([[:space:]]|$)" \
+        || block "helm command missing or wrong --kubeconfig for rwl-env '$RWLENV_NAME' (expected $RWLENV_KUBECONFIG)."
+    echo "$ORIGINAL_CMD" | grep -qE -- "--kube-context=${ctx_esc}([[:space:]]|$)" \
+        || block "helm command missing or wrong --kube-context for rwl-env '$RWLENV_NAME' (expected $RWLENV_CONTEXT)."
+    echo "$ORIGINAL_CMD" | grep -qE -- "(-n|--namespace)[[:space:]]+${ns_esc}([[:space:]]|$)" \
+        || block "helm command missing or wrong -n/--namespace for rwl-env '$RWLENV_NAME' (expected $RWLENV_NAMESPACE)."
+
+    # Release name must equal $RWLENV_RELEASE for upgrade/rollback/get/status/history
+    # Extract first positional argument after subcommand
+    rel_arg=$(echo "$ORIGINAL_CMD" \
+        | sed 's/.*[^a-zA-Z0-9_-]helm/helm/' \
+        | awk -v helmscmd="$helm_sub" '{
+            for (i=1; i<=NF; i++) {
+                if ($i == "helm") continue
+                if ($i ~ /^-/) {
+                    if ($i !~ /=/) i++
+                    continue
+                }
+                # consume subcommand tokens
+                if (split(helmscmd, parts, " ") >= 1 && $i == parts[1]) {
+                    if (length(parts) > 1 && $(i+1) == parts[2]) i++
+                    continue
+                }
+                print $i; exit
+            }
+        }')
+    case "$helm_sub" in
+        upgrade|rollback|"get values"|"get manifest"|"get metadata"|"get notes"|"get hooks"|history|status)
+            if [[ -n "$rel_arg" && "$rel_arg" != "$RWLENV_RELEASE" ]]; then
+                block "helm command targets release '$rel_arg' but active rwl-env '$RWLENV_NAME' uses release '$RWLENV_RELEASE'."
+            fi
+            ;;
+    esac
+
+    # readOnly enforcement
+    if [[ "$RWLENV_READ_ONLY" == "true" ]] && is_helm_write_operation "$helm_sub"; then
+        block "helm '$helm_sub' not allowed; rwl-env '$RWLENV_NAME' is read-only."
+    fi
+
+    allow
+fi
+
+# --- Kubectl decision (added in Task 8) ---
+# --- Psql decision (added in Task 9) ---
+
 allow

@@ -158,6 +158,11 @@ write_rwlenv_env "$TMPDIR_TEST" "helm-dev"
 assert_eq "$(grep -c '^.claude/rwl-env$' "$TMPDIR_TEST/.gitignore")" "1" ".gitignore .claude/rwl-env still 1 after second call (idempotent)"
 assert_eq "$(grep -c '^.claude/rwl-env-env$' "$TMPDIR_TEST/.gitignore")" "1" ".gitignore .claude/rwl-env-env still 1 after second call (idempotent)"
 
+echo "== escape_regex =="
+assert_eq "$(escape_regex '/Users/rohit.ekbote/.kube/config')" '\/Users\/rohit\.ekbote\/\.kube\/config' "escapes dots and slashes"
+assert_eq "$(escape_regex 'simple-name')" 'simple-name' "no-op on safe strings"
+assert_eq "$(escape_regex 'gke_proj.region_cluster')" 'gke_proj\.region_cluster' "escapes dots in context names"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]
