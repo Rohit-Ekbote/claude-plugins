@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Config
+clusters:
+- name: cluster-a
+  cluster: { server: https://a.example.com }
+contexts:
+- name: ctx-shared
+  context: { cluster: cluster-a, user: user-a }
+- name: ctx-only-a
+  context: { cluster: cluster-a, user: user-a }
+users:
+- name: user-a
+  user: {}
+current-context: ctx-shared

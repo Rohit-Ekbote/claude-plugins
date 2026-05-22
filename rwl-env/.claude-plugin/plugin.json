@@ -1,0 +1,12 @@
+{
+  "name": "rwl-env",
+  "description": "Helm-deployed RunWhen platform local debugger with deterministic-revert safety",
+  "version": "0.1.0",
+  "author": {
+    "name": "Rohit Ekbote"
+  },
+  "homepage": "https://github.com/Rohit-Ekbote/claude-plugins",
+  "repository": "https://github.com/Rohit-Ekbote/claude-plugins",
+  "license": "MIT",
+  "keywords": ["kubernetes", "k8s", "helm", "runwhen", "debug", "single-cluster", "safety"]
+}

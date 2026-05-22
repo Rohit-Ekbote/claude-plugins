@@ -17,7 +17,33 @@
       "author": {
         "name": "Rohit Ekbote"
       },
-      "tags": ["kubernetes", "k8s", "gke", "k3s", "multi-cluster", "safety"],
+      "tags": [
+        "kubernetes",
+        "k8s",
+        "gke",
+        "k3s",
+        "multi-cluster",
+        "safety"
+      ],
+      "homepage": "https://github.com/Rohit-Ekbote/claude-plugins"
+    },
+    {
+      "name": "rwl-env",
+      "description": "Helm-deployed RunWhen platform local debugger with deterministic-revert safety",
+      "version": "0.1.0",
+      "source": "./rwl-env",
+      "author": {
+        "name": "Rohit Ekbote"
+      },
+      "tags": [
+        "kubernetes",
+        "k8s",
+        "helm",
+        "runwhen",
+        "debug",
+        "single-cluster",
+        "safety"
+      ],
       "homepage": "https://github.com/Rohit-Ekbote/claude-plugins"
     }
   ]

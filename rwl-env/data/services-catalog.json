@@ -1,0 +1,259 @@
+{
+  "version": "1.0",
+  "chartAppVersion": "1.0.0",
+  "chartName": "runwhen-platform",
+  "services": {
+    "activities": {
+      "description": "Background activities and task processing service",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=activities",
+      "containerName": "activities",
+      "internalPort": 8000,
+      "probes": { "readiness": "/healthz", "liveness": "/livez" },
+      "deploymentWaitFor": ["wait-for-migrations"]
+    },
+    "agentfarm": {
+      "description": "ADK-based agent orchestration service",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.agentfarm.tag",
+      "podSelector": "app.kubernetes.io/component=agentfarm",
+      "containerName": "agentfarm",
+      "internalPort": 8080,
+      "probes": { "readiness": "/healthz", "liveness": "/healthz" },
+      "deploymentWaitFor": ["wait-for-db", "wait-for-migrations"]
+    },
+    "alert-ingestor": {
+      "description": "Alert ingestion service",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=alert-ingestor",
+      "containerName": "alert-ingestor",
+      "internalPort": 8000,
+      "probes": { "readiness": "/healthz", "liveness": "/livez" },
+      "deploymentWaitFor": ["wait-for-migrations"]
+    },
+    "alert-query": {
+      "description": "Alert query and retrieval service",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=alert-query",
+      "containerName": "alert-query",
+      "internalPort": 8000,
+      "probes": { "readiness": "/healthz", "liveness": "/livez" },
+      "deploymentWaitFor": ["wait-for-migrations"]
+    },
+    "alert-worker": {
+      "description": "Alert background worker (taskiq consumer for alerts queue)",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=alert-worker",
+      "containerName": "alert-worker",
+      "internalPort": null,
+      "probes": { "readiness": null, "liveness": null },
+      "deploymentWaitFor": ["wait-for-migrations"]
+    },
+    "alerts": {
+      "description": "Alert management and notification service",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=alerts",
+      "containerName": "alerts",
+      "internalPort": 8000,
+      "probes": { "readiness": "/healthz", "liveness": "/livez" },
+      "deploymentWaitFor": ["wait-for-migrations"]
+    },
+    "cc-catalog-svc": {
+      "description": "CodeCollection catalog service — mirrors and indexes upstream CC images",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.ccCatalog.tag",
+      "podSelector": "app.kubernetes.io/component=cc-catalog-svc",
+      "containerName": "cc-catalog-svc",
+      "internalPort": 8080,
+      "probes": { "readiness": "/readyz", "liveness": "/healthz" },
+      "deploymentWaitFor": []
+    },
+    "embedder": {
+      "description": "Text embedding service (shared-services image)",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.embedder.tag",
+      "podSelector": "app.kubernetes.io/component=embedder",
+      "containerName": "embedder",
+      "internalPort": 8000,
+      "probes": { "readiness": "/healthz", "liveness": "/livez" },
+      "deploymentWaitFor": []
+    },
+    "llm-bootstrap": {
+      "description": "LLM configuration bootstrap job (post-install helm hook; not a long-running pod)",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=llm-bootstrap",
+      "containerName": "",
+      "internalPort": null,
+      "probes": { "readiness": null, "liveness": null },
+      "deploymentWaitFor": []
+    },
+    "llm-gateway": {
+      "description": "LiteLLM proxy gateway — single LLM endpoint for all platform services",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.llmGateway.tag",
+      "podSelector": "app.kubernetes.io/component=llm-gateway",
+      "containerName": "llm-gateway",
+      "internalPort": 4000,
+      "probes": { "readiness": "/health/readiness", "liveness": "/health/liveliness" },
+      "deploymentWaitFor": []
+    },
+    "mcp-server": {
+      "description": "Model Context Protocol server for Claude/AI tool integration",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.mcpServer.tag",
+      "podSelector": "app.kubernetes.io/component=mcp-server",
+      "containerName": "mcp-server",
+      "internalPort": 8000,
+      "probes": { "readiness": "/livez", "liveness": "/livez" },
+      "deploymentWaitFor": []
+    },
+    "metricstore": {
+      "description": "Grafana Mimir metric store — Prometheus-compatible time-series database",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "metricstore.image.tag",
+      "podSelector": "app.kubernetes.io/component=mimir",
+      "containerName": "mimir",
+      "internalPort": 9009,
+      "probes": { "readiness": "/ready", "liveness": "/ready" },
+      "deploymentWaitFor": []
+    },
+    "migration-controller": {
+      "description": "Django/FastAPI database migration controller for the core backend-services schema",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=migration-controller",
+      "containerName": "controller",
+      "internalPort": 8080,
+      "probes": { "readiness": "/health", "liveness": "/health" },
+      "deploymentWaitFor": ["wait-for-db", "wait-for-vault"]
+    },
+    "papi": {
+      "description": "Public REST API — primary backend API for the RunWhen platform",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=papi",
+      "containerName": "papi",
+      "internalPort": 8000,
+      "probes": { "readiness": "/healthz", "liveness": "/livez" },
+      "deploymentWaitFor": ["wait-for-migrations"]
+    },
+    "runner-control": {
+      "description": "Runner control service — manages runner lifecycle over HTTP and gRPC",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.runnerControl.tag",
+      "podSelector": "app.kubernetes.io/component=runner-control",
+      "containerName": "runner-control",
+      "internalPort": 8080,
+      "probes": { "readiness": "/health", "liveness": "/health" },
+      "deploymentWaitFor": []
+    },
+    "runner-metric-proxy": {
+      "description": "Cortex-tenant proxy — accepts runner Prometheus remote-write with mTLS, forwards to Mimir",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "runnerMetricProxy.image.tag",
+      "podSelector": "app.kubernetes.io/component=runner-metric-proxy",
+      "containerName": "cortex-tenant",
+      "internalPort": 8080,
+      "probes": { "readiness": "/alive", "liveness": "/alive" },
+      "deploymentWaitFor": []
+    },
+    "slackbot": {
+      "description": "Slack integration service for RunWhen platform notifications and commands",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=slackbot",
+      "containerName": "slackbot",
+      "internalPort": 8000,
+      "probes": { "readiness": "/healthz", "liveness": "/livez" },
+      "deploymentWaitFor": ["wait-for-migrations"]
+    },
+    "sobow-index": {
+      "description": "SOBOW (search-over-build-output-workspaces) indexer service",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=sobow-index",
+      "containerName": "sobow-index",
+      "internalPort": 8000,
+      "probes": { "readiness": "/healthz", "liveness": "/livez" },
+      "deploymentWaitFor": ["wait-for-migrations"]
+    },
+    "sobow-search": {
+      "description": "SOBOW search query service",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=sobow-search",
+      "containerName": "sobow-search",
+      "internalPort": 8000,
+      "probes": { "readiness": "/healthz", "liveness": "/livez" },
+      "deploymentWaitFor": ["wait-for-migrations"]
+    },
+    "sobrain": {
+      "description": "SoBrain AI reasoning and workspace intelligence service",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=sobrain",
+      "containerName": "sobrain",
+      "internalPort": 8000,
+      "probes": { "readiness": "/healthz", "liveness": "/livez" },
+      "deploymentWaitFor": ["wait-for-migrations"]
+    },
+    "taskiq-scheduler": {
+      "description": "Taskiq distributed task scheduler (beat process)",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=taskiq-scheduler",
+      "containerName": "taskiq-scheduler",
+      "internalPort": null,
+      "probes": { "readiness": null, "liveness": null },
+      "deploymentWaitFor": ["wait-for-migrations"]
+    },
+    "taskiq-worker": {
+      "description": "Taskiq distributed task worker (consumer process)",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.backendServices.tag",
+      "podSelector": "app.kubernetes.io/component=taskiq-worker",
+      "containerName": "taskiq-worker",
+      "internalPort": null,
+      "probes": { "readiness": null, "liveness": null },
+      "deploymentWaitFor": ["wait-for-migrations"]
+    },
+    "usearch": {
+      "description": "USearch unified search subsystem — indexer, query, worker and scheduler pods (usearch image)",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.usearch.tag",
+      "podSelector": "app.kubernetes.io/component=usearch-indexer",
+      "containerName": "usearch-indexer",
+      "internalPort": 8000,
+      "probes": { "readiness": "/health", "liveness": "/health" },
+      "deploymentWaitFor": ["wait-for-neo4j", "wait-for-migrations"]
+    },
+    "user-pages": {
+      "description": "Next.js UI frontend — serves the RunWhen web application",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.userPages.tag",
+      "podSelector": "app.kubernetes.io/component=user-pages",
+      "containerName": "user-pages",
+      "internalPort": 3000,
+      "probes": { "readiness": null, "liveness": null },
+      "deploymentWaitFor": []
+    },
+    "webhooks": {
+      "description": "Webhooks service — Watermill event subscriber for incoming webhook payloads",
+      "namespace": "<rwl-env-ns>",
+      "imageTagKey": "images.webhooks.tag",
+      "podSelector": "app.kubernetes.io/component=webhooks",
+      "containerName": "webhooks",
+      "internalPort": 8080,
+      "probes": { "readiness": null, "liveness": null },
+      "deploymentWaitFor": []
+    }
+  },
+  "databases": {},
+  "subcharts": {}
+}
