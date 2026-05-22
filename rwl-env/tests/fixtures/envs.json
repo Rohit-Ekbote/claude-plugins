@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "rwlenvs": {
+    "helm-dev": {
+      "description": "Local k3d test cluster",
+      "kubeconfigPath": "/tmp/test-kubeconfig",
+      "kubernetesContext": "k3d-rwl-dev",
+      "namespace": "runwhen",
+      "releaseName": "rwl",
+      "chart": { "repo": "oci://registry.example.com/charts", "name": "runwhen-platform" },
+      "readOnly": false
+    },
+    "helm-staging": {
+      "description": "Staging read-only",
+      "kubeconfigPath": "/tmp/staging-kubeconfig",
+      "kubernetesContext": "staging-ctx",
+      "namespace": "runwhen",
+      "releaseName": "rwl",
+      "chart": { "repo": "https://charts.example.com", "name": "runwhen-platform" },
+      "readOnly": true
+    }
+  }
+}
