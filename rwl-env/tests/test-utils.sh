@@ -54,6 +54,24 @@ echo "== is_readonly =="
 set +e; is_readonly helm-dev; assert_rc $? 1 "helm-dev is not readOnly (rc=1)"
 is_readonly helm-staging; assert_rc $? 0 "helm-staging is readOnly (rc=0)"; set -e
 
+echo "== list_contexts_in_file =="
+got=$(list_contexts_in_file "$SCRIPT_DIR/fixtures/kube-a.yaml" | sort | tr '\n' ',' | sed 's/,$//')
+assert_eq "$got" "ctx-only-a,ctx-shared" "kube-a.yaml lists ctx-only-a + ctx-shared"
+
+echo "== find_context_across_files =="
+# Searches under a temporary KUBE_SEARCH_ROOT (env var, override of ~/.kube/)
+export KUBE_SEARCH_ROOT="$SCRIPT_DIR/fixtures"
+got=$(find_context_across_files ctx-only-a | tr '\n' '|' | sed 's/|$//')
+# Format: "<file>\t<context>"
+assert_eq "$got" "$SCRIPT_DIR/fixtures/kube-a.yaml	ctx-only-a" "ctx-only-a found in kube-a.yaml only"
+
+got_count=$(find_context_across_files ctx-shared | wc -l | tr -d ' ')
+assert_eq "$got_count" "2" "ctx-shared found in both files"
+
+got=$(find_context_across_files ctx-missing | wc -l | tr -d ' ')
+assert_eq "$got" "0" "ctx-missing returns no matches"
+unset KUBE_SEARCH_ROOT
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]
