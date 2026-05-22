@@ -170,7 +170,32 @@ if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z0-9_-])kubectl([[:space:]]|$)"; t
     if is_kubectl_write_operation "$kubectl_sub"; then
         case "$kubectl_sub" in
             exec*)
-                : # exec extras handled in Task 9
+                # If the inner command invokes psql, validate it.
+                if echo "$ORIGINAL_CMD" | grep -qE "[^a-zA-Z0-9_-]psql([[:space:]]|$)"; then
+                    # Only -c '<query>' form is supported
+                    if ! echo "$ORIGINAL_CMD" | grep -qE -- "psql[[:space:]]+([^|;&]*[[:space:]]+)?-c[[:space:]]+['\"]"; then
+                        block "psql via kubectl exec must use -c '<query>' form for rwl-env '$RWLENV_NAME'; -f/stdin/interactive psql are not auto-approvable."
+                    fi
+                    # Extract query between first matching pair of quotes after -c
+                    query=$(echo "$ORIGINAL_CMD" \
+                        | sed -n "s/.*psql[^|;&]*-c[[:space:]]*'\\([^']*\\)'.*/\\1/p")
+                    if [[ -z "$query" ]]; then
+                        # Try double quotes
+                        query=$(echo "$ORIGINAL_CMD" \
+                            | sed -n 's/.*psql[^|;&]*-c[[:space:]]*"\([^"]*\)".*/\1/p')
+                    fi
+                    if [[ -z "$query" ]]; then
+                        block "could not extract psql -c query for validation in rwl-env '$RWLENV_NAME'; reformulate with single-quoted -c '<query>'."
+                    fi
+                    # Validate read-only safety
+                    validate_psql_query "$query" 2>/tmp/rwl-env-psql-err.$$ || {
+                        msg=$(cat /tmp/rwl-env-psql-err.$$)
+                        rm -f /tmp/rwl-env-psql-err.$$
+                        block "$msg"
+                    }
+                    rm -f /tmp/rwl-env-psql-err.$$
+                fi
+                # Interactive shells (sh/bash without psql) pass through
                 ;;
             *)
                 block "kubectl '$kubectl_sub' not allowed for rwl-env '$RWLENV_NAME'; mutations must go through helm-ops (helm upgrade / rollback)."
@@ -181,6 +206,9 @@ if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z0-9_-])kubectl([[:space:]]|$)"; t
     allow
 fi
 
-# --- Psql decision (added in Task 9) ---
+# Standalone psql (not under kubectl exec) is not validated in v0.
+# It's reachable only if the user has set up a port-forward (which kubectl exec
+# allows) and then runs psql directly against 127.0.0.1. Out of scope for now;
+# revisit if real usage surfaces it.
 
 allow

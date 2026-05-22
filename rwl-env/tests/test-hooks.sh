@@ -130,6 +130,20 @@ assert_block "kubectl --kubeconfig=/tmp/wrong --context=k3d-rwl-dev get pods -n 
 assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=wrong get pods -n runwhen" "wrong context blocked"
 assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev get pods -n elsewhere" "wrong namespace blocked"
 
+echo "== psql validation =="
+use_fixture helm-dev
+
+assert_allow "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev exec -n runwhen core-pg-0 -- env PGPASSWORD=x psql -h 127.0.0.1 -U core -d core -c 'SELECT 1'" "exec + psql SELECT allowed"
+assert_allow "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev exec -n runwhen core-pg-0 -- env PGPASSWORD=x psql -h 127.0.0.1 -U core -d core -c 'EXPLAIN SELECT 1'" "exec + psql EXPLAIN allowed"
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev exec -n runwhen core-pg-0 -- env PGPASSWORD=x psql -h 127.0.0.1 -U core -d core -c 'INSERT INTO t VALUES (1)'" "exec + psql INSERT blocked"
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev exec -n runwhen core-pg-0 -- env PGPASSWORD=x psql -h 127.0.0.1 -U core -d core -c 'DROP TABLE x'" "exec + psql DROP blocked"
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev exec -n runwhen core-pg-0 -- env PGPASSWORD=x psql -h 127.0.0.1 -U core -d core -c 'TRUNCATE x'" "exec + psql TRUNCATE blocked"
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev exec -n runwhen core-pg-0 -- env PGPASSWORD=x psql -h 127.0.0.1 -U core -d core -f /tmp/file.sql" "psql -f file form blocked"
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev exec -n runwhen core-pg-0 -- env PGPASSWORD=x psql -h 127.0.0.1 -U core -d core" "psql with no -c blocked (would start interactive)"
+
+# Multi-statement
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev exec -n runwhen core-pg-0 -- env PGPASSWORD=x psql -h 127.0.0.1 -U core -d core -c 'SELECT 1; DROP TABLE x'" "multi-stmt with DDL blocked"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]
