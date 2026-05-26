@@ -144,6 +144,51 @@ assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev ex
 # Multi-statement
 assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev exec -n runwhen core-pg-0 -- env PGPASSWORD=x psql -h 127.0.0.1 -U core -d core -c 'SELECT 1; DROP TABLE x'" "multi-stmt with DDL blocked"
 
+echo "== Runner target validation (helm-dev with runner) =="
+use_fixture helm-dev-with-runner
+
+# Platform commands still work
+assert_allow "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev get pods -n runwhen" "platform kubectl still allowed with runner configured"
+assert_allow "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev get values rwl -n runwhen" "platform helm read still allowed"
+
+# Runner kubectl reads allowed
+assert_allow "kubectl --kubeconfig=/tmp/runner-kubeconfig --context=runner-ctx get pods -n runwhen-runner" "runner kubectl get pods allowed"
+assert_allow "kubectl --kubeconfig=/tmp/runner-kubeconfig --context=runner-ctx logs runner-pod -n runwhen-runner" "runner kubectl logs allowed"
+assert_allow "kubectl --kubeconfig=/tmp/runner-kubeconfig --context=runner-ctx describe deploy/runner -n runwhen-runner" "runner kubectl describe allowed"
+
+# Runner helm reads allowed
+assert_allow "helm --kubeconfig=/tmp/runner-kubeconfig --kube-context=runner-ctx get values rwl-runner -n runwhen-runner" "runner helm get values allowed"
+assert_allow "helm --kubeconfig=/tmp/runner-kubeconfig --kube-context=runner-ctx history rwl-runner -n runwhen-runner" "runner helm history allowed"
+
+# Runner helm writes allowed (runner not readOnly)
+assert_allow "helm --kubeconfig=/tmp/runner-kubeconfig --kube-context=runner-ctx upgrade rwl-runner oci://registry.example.com/charts/runwhen-local --reuse-values -n runwhen-runner" "runner helm upgrade allowed"
+assert_allow "helm --kubeconfig=/tmp/runner-kubeconfig --kube-context=runner-ctx rollback rwl-runner 3 -n runwhen-runner" "runner helm rollback allowed"
+
+# Runner kubectl writes blocked
+assert_block "kubectl --kubeconfig=/tmp/runner-kubeconfig --context=runner-ctx apply -f x.yaml -n runwhen-runner" "runner kubectl apply blocked"
+assert_block "kubectl --kubeconfig=/tmp/runner-kubeconfig --context=runner-ctx delete pod runner-pod -n runwhen-runner" "runner kubectl delete blocked"
+
+# Runner helm forbidden ops blocked
+assert_block "helm --kubeconfig=/tmp/runner-kubeconfig --kube-context=runner-ctx install rwl-runner chart -n runwhen-runner" "runner helm install forbidden"
+
+# Mixed credentials blocked (platform kubeconfig + runner namespace)
+assert_block "kubectl --kubeconfig=/tmp/test-kubeconfig --context=k3d-rwl-dev get pods -n runwhen-runner" "platform kubeconfig + runner namespace blocked"
+assert_block "helm --kubeconfig=/tmp/test-kubeconfig --kube-context=k3d-rwl-dev get values rwl-runner -n runwhen-runner" "platform kubeconfig + runner namespace blocked (helm)"
+
+# Mixed credentials blocked (runner kubeconfig + platform namespace)
+assert_block "kubectl --kubeconfig=/tmp/runner-kubeconfig --context=runner-ctx get pods -n runwhen" "runner kubeconfig + platform namespace blocked"
+
+# Wrong runner release name blocked
+assert_block "helm --kubeconfig=/tmp/runner-kubeconfig --kube-context=runner-ctx upgrade wrong-release chart --reuse-values -n runwhen-runner" "wrong runner release name blocked"
+
+# Unknown credentials blocked (neither platform nor runner)
+assert_block "kubectl --kubeconfig=/tmp/unknown --context=unknown get pods -n unknown" "unknown credentials blocked"
+
+echo "== Runner not configured (helm-staging, no runner) =="
+use_fixture helm-staging
+# Runner-like credentials should be blocked (no runner configured, so only platform match accepted)
+assert_block "kubectl --kubeconfig=/tmp/runner-kubeconfig --context=runner-ctx get pods -n runwhen-runner" "runner credentials blocked when no runner configured"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

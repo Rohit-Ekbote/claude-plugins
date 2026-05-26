@@ -58,6 +58,52 @@ is_readonly() {
     echo "$rwlenv" | jq -e '.readOnly == true' >/dev/null 2>&1
 }
 
+# Check if rwlenv entry has a runner configured. rc=0 if yes, rc=1 if no.
+has_runner() {
+    local name="$1"
+    local rwlenv
+    rwlenv="$(get_rwlenv_by_name "$name")" || return 1
+    echo "$rwlenv" | jq -e '.runner != null' >/dev/null 2>&1
+}
+
+# Extract runner config from rwlenv entry. Returns JSON. rc=1 if no runner.
+get_runner_config() {
+    local name="$1"
+    local rwlenv
+    rwlenv="$(get_rwlenv_by_name "$name")" || return 1
+    echo "$rwlenv" | jq -e '.runner // empty' 2>/dev/null || return 1
+}
+
+# Write/overwrite runner config in envs.json for a given platform entry.
+set_runner_config() {
+    local name="$1"
+    local runner_json="$2"
+    local envs_file
+    envs_file="$(get_config_dir)/envs.json"
+    local tmp
+    tmp=$(mktemp)
+    jq --arg name "$name" --argjson runner "$runner_json" \
+        '.rwlenvs[$name].runner = $runner' "$envs_file" > "$tmp" && mv "$tmp" "$envs_file"
+}
+
+# Remove runner config from envs.json for a given platform entry.
+remove_runner_config() {
+    local name="$1"
+    local envs_file
+    envs_file="$(get_config_dir)/envs.json"
+    local tmp
+    tmp=$(mktemp)
+    jq --arg name "$name" 'del(.rwlenvs[$name].runner)' "$envs_file" > "$tmp" && mv "$tmp" "$envs_file"
+}
+
+# Check if runner is read-only. rc=0 if read-only, rc=1 otherwise. rc=1 if no runner.
+is_runner_readonly() {
+    local name="$1"
+    local runner
+    runner="$(get_runner_config "$name")" || return 1
+    echo "$runner" | jq -e '.readOnly == true' >/dev/null 2>&1
+}
+
 # --- Kubeconfig discovery ---
 
 # List contexts in a single kubeconfig file. Returns rc=1 if file invalid.
@@ -240,6 +286,30 @@ RWLENV_CHART_REPO="$chart_repo"
 RWLENV_CHART_NAME="$chart_name"
 RWLENV_READ_ONLY="$read_only"
 ENVEOF
+
+    # Runner vars (optional)
+    if echo "$cfg" | jq -e '.runner != null' >/dev/null 2>&1; then
+        local r_kubeconfig r_context r_namespace r_release r_chart_repo r_chart_name r_read_only
+        r_kubeconfig=$(echo "$cfg" | jq -r '.runner.kubeconfigPath')
+        r_context=$(echo "$cfg" | jq -r '.runner.kubernetesContext')
+        r_namespace=$(echo "$cfg" | jq -r '.runner.namespace')
+        r_release=$(echo "$cfg" | jq -r '.runner.releaseName')
+        r_chart_repo=$(echo "$cfg" | jq -r '.runner.chart.repo')
+        r_chart_name=$(echo "$cfg" | jq -r '.runner.chart.name')
+        r_read_only=$(echo "$cfg" | jq -r '.runner.readOnly')
+        cat >> "$file" <<RUNNEREOF
+RWLENV_HAS_RUNNER="true"
+RWLENV_RUNNER_KUBECONFIG="$r_kubeconfig"
+RWLENV_RUNNER_CONTEXT="$r_context"
+RWLENV_RUNNER_NAMESPACE="$r_namespace"
+RWLENV_RUNNER_RELEASE="$r_release"
+RWLENV_RUNNER_CHART_REPO="$r_chart_repo"
+RWLENV_RUNNER_CHART_NAME="$r_chart_name"
+RWLENV_RUNNER_READ_ONLY="$r_read_only"
+RUNNEREOF
+    else
+        echo 'RWLENV_HAS_RUNNER="false"' >> "$file"
+    fi
 
     # Auto-gitignore
     local gitignore="$dir/.gitignore"

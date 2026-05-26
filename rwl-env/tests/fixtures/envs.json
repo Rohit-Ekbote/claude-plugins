@@ -8,7 +8,15 @@
       "namespace": "runwhen",
       "releaseName": "rwl",
       "chart": { "repo": "oci://registry.example.com/charts", "name": "runwhen-platform" },
-      "readOnly": false
+      "readOnly": false,
+      "runner": {
+        "kubeconfigPath": "/tmp/runner-kubeconfig",
+        "kubernetesContext": "runner-ctx",
+        "namespace": "runwhen-runner",
+        "releaseName": "rwl-runner",
+        "chart": { "repo": "oci://registry.example.com/charts", "name": "runwhen-local" },
+        "readOnly": false
+      }
     },
     "helm-staging": {
       "description": "Staging read-only",

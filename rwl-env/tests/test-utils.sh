@@ -139,9 +139,20 @@ assert_eq "$(grep '^RWLENV_NAMESPACE=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut 
 assert_eq "$(grep '^RWLENV_RELEASE=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "rwl" "RWLENV_RELEASE set"
 assert_eq "$(grep '^RWLENV_READ_ONLY=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "false" "RWLENV_READ_ONLY false"
 assert_eq "$(grep '^RWLENV_CHART_REPO=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "oci://registry.example.com/charts" "RWLENV_CHART_REPO set"
+# Runner vars present for helm-dev (which has runner)
+assert_eq "$(grep '^RWLENV_HAS_RUNNER=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "true" "RWLENV_HAS_RUNNER true for helm-dev"
+assert_eq "$(grep '^RWLENV_RUNNER_KUBECONFIG=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "/tmp/runner-kubeconfig" "RWLENV_RUNNER_KUBECONFIG set"
+assert_eq "$(grep '^RWLENV_RUNNER_CONTEXT=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "runner-ctx" "RWLENV_RUNNER_CONTEXT set"
+assert_eq "$(grep '^RWLENV_RUNNER_NAMESPACE=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "runwhen-runner" "RWLENV_RUNNER_NAMESPACE set"
+assert_eq "$(grep '^RWLENV_RUNNER_RELEASE=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "rwl-runner" "RWLENV_RUNNER_RELEASE set"
+assert_eq "$(grep '^RWLENV_RUNNER_CHART_NAME=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "runwhen-local" "RWLENV_RUNNER_CHART_NAME set"
+assert_eq "$(grep '^RWLENV_RUNNER_READ_ONLY=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "false" "RWLENV_RUNNER_READ_ONLY false"
 
 write_rwlenv_env "$TMPDIR_TEST" "helm-staging"
 assert_eq "$(grep '^RWLENV_READ_ONLY=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "true" "RWLENV_READ_ONLY true for staging"
+# No runner vars for helm-staging (no runner configured)
+assert_eq "$(grep '^RWLENV_HAS_RUNNER=' "$TMPDIR_TEST/.claude/rwl-env-env" | cut -d= -f2 | tr -d '"')" "false" "RWLENV_HAS_RUNNER false for helm-staging"
+assert_eq "$(grep -c '^RWLENV_RUNNER_' "$TMPDIR_TEST/.claude/rwl-env-env")" "0" "no RWLENV_RUNNER_ vars for helm-staging"
 
 # Verify unknown entry fails — needs set +e/-e guard since under set -e the rc=1 would abort
 set +e
@@ -157,6 +168,18 @@ set_rwlenv_for_dir "$TMPDIR_TEST" "helm-dev"
 write_rwlenv_env "$TMPDIR_TEST" "helm-dev"
 assert_eq "$(grep -c '^.claude/rwl-env$' "$TMPDIR_TEST/.gitignore")" "1" ".gitignore .claude/rwl-env still 1 after second call (idempotent)"
 assert_eq "$(grep -c '^.claude/rwl-env-env$' "$TMPDIR_TEST/.gitignore")" "1" ".gitignore .claude/rwl-env-env still 1 after second call (idempotent)"
+
+echo "== has_runner =="
+has_runner helm-dev; assert_rc $? 0 "helm-dev has runner (rc=0)"
+set +e; has_runner helm-staging; assert_rc $? 1 "helm-staging has no runner (rc=1)"; set -e
+
+echo "== get_runner_config =="
+assert_eq "$(get_runner_config helm-dev | jq -r '.namespace')" "runwhen-runner" "runner namespace from helm-dev"
+set +e; out=$(get_runner_config helm-staging 2>/dev/null); assert_rc $? 1 "no runner config returns rc=1"; set -e
+
+echo "== is_runner_readonly =="
+set +e; is_runner_readonly helm-dev; assert_rc $? 1 "helm-dev runner is not readOnly (rc=1)"
+is_runner_readonly helm-staging; assert_rc $? 1 "helm-staging has no runner (rc=1)"; set -e
 
 echo "== escape_regex =="
 assert_eq "$(escape_regex '/Users/rohit.ekbote/.kube/config')" '\/Users\/rohit\.ekbote\/\.kube\/config' "escapes dots and slashes"

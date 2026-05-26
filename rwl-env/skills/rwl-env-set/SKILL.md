@@ -41,7 +41,25 @@ Switch the active rwl-env for `$PWD`. Writes `.claude/rwl-env` (plain text) and 
    format_rwlenv_details "$target"
    ```
 
-5. **Read-only warning** (if applicable):
+5. **Runner info**
+
+If the rwl-env has a runner configured:
+
+```bash
+has_runner "$target_name" && {
+    runner=$(get_runner_config "$target_name")
+    echo ""
+    echo "Runner:"
+    echo "  Kubeconfig:  $(echo "$runner" | jq -r '.kubeconfigPath')"
+    echo "  Context:     $(echo "$runner" | jq -r '.kubernetesContext')"
+    echo "  Namespace:   $(echo "$runner" | jq -r '.namespace')"
+    echo "  Release:     $(echo "$runner" | jq -r '.releaseName')"
+    echo "  Chart:       $(echo "$runner" | jq -r '.chart.repo')/$(echo "$runner" | jq -r '.chart.name')"
+    echo "  Read-Only:   $(echo "$runner" | jq -r '.readOnly')"
+}
+```
+
+6. **Read-only warning** (if applicable):
    ```
    WARNING: This rwl-env is READ-ONLY. The following are blocked:
      - helm upgrade, helm rollback

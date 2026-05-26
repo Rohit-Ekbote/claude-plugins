@@ -25,39 +25,53 @@ Canonical write operation. Updates a single service's image tag via `helm upgrad
 
 ```bash
 source .claude/rwl-env-env
-CATALOG="${CLAUDE_PLUGIN_ROOT}/data/services-catalog.json"
 ```
 
-### Step 1: Refuse if read-only
+### Step 1: Target selection
 
-If `$RWLENV_READ_ONLY == "true"`: abort with "rwl-env '$RWLENV_NAME' is read-only."
+Source `.claude/rwl-env-env`. If `$RWLENV_HAS_RUNNER` is `true`, ask which target:
 
-### Step 2: Resolve service → imageTagKey
+AskUserQuestion: "Which target?"
+- Options: Platform ($RWLENV_RELEASE in $RWLENV_NAMESPACE), Runner ($RWLENV_RUNNER_RELEASE in $RWLENV_RUNNER_NAMESPACE)
+
+Set variables based on selection:
+- **Platform:** `TARGET_KUBECONFIG=$RWLENV_KUBECONFIG`, `TARGET_CONTEXT=$RWLENV_CONTEXT`, `TARGET_NAMESPACE=$RWLENV_NAMESPACE`, `TARGET_RELEASE=$RWLENV_RELEASE`, `TARGET_CHART_REPO=$RWLENV_CHART_REPO`, `TARGET_CHART_NAME=$RWLENV_CHART_NAME`, `TARGET_READ_ONLY=$RWLENV_READ_ONLY`, `TARGET_CATALOG=${CLAUDE_PLUGIN_ROOT}/data/services-catalog.json`
+- **Runner:** `TARGET_KUBECONFIG=$RWLENV_RUNNER_KUBECONFIG`, `TARGET_CONTEXT=$RWLENV_RUNNER_CONTEXT`, `TARGET_NAMESPACE=$RWLENV_RUNNER_NAMESPACE`, `TARGET_RELEASE=$RWLENV_RUNNER_RELEASE`, `TARGET_CHART_REPO=$RWLENV_RUNNER_CHART_REPO`, `TARGET_CHART_NAME=$RWLENV_RUNNER_CHART_NAME`, `TARGET_READ_ONLY=$RWLENV_RUNNER_READ_ONLY`, `TARGET_CATALOG=${CLAUDE_PLUGIN_ROOT}/data/runner-services-catalog.json`
+
+If no runner configured, skip the prompt and use platform variables.
+
+All subsequent steps use `$TARGET_*` variables instead of `$RWLENV_*`.
+
+### Step 2: Refuse if read-only
+
+If `$TARGET_READ_ONLY == "true"`: abort with "rwl-env '$RWLENV_NAME' is read-only."
+
+### Step 3: Resolve service → imageTagKey
 
 ```bash
-key=$(jq -r --arg s "$service" '.services[$s].imageTagKey // empty' "$CATALOG")
+key=$(jq -r --arg s "$service" '.services[$s].imageTagKey // empty' "$TARGET_CATALOG")
 if [[ -z "$key" ]]; then
     echo "Service '$service' not in catalog. Available:"
-    jq -r '.services | keys[]' "$CATALOG"
+    jq -r '.services | keys[]' "$TARGET_CATALOG"
     exit 1
 fi
 ```
 
-### Step 3: List all services sharing this imageTagKey
+### Step 4: List all services sharing this imageTagKey
 
 ```bash
-shared=$(jq -r --arg k "$key" '.services | to_entries | map(select(.value.imageTagKey == $k)) | .[].key' "$CATALOG")
+shared=$(jq -r --arg k "$key" '.services | to_entries | map(select(.value.imageTagKey == $k)) | .[].key' "$TARGET_CATALOG")
 ```
 
 Show these to the user so they know what else is moving.
 
-### Step 4: Read current tag and chart version
+### Step 5: Read current tag and chart version
 
 Use the helm-ops agent (Task tool with subagent_type: "rwl-env:helm-ops") to run:
 ```
-helm get values $RWLENV_RELEASE -n $RWLENV_NAMESPACE -o yaml
-helm get metadata $RWLENV_RELEASE -n $RWLENV_NAMESPACE
-helm history $RWLENV_RELEASE -n $RWLENV_NAMESPACE -o json
+helm get values $TARGET_RELEASE -n $TARGET_NAMESPACE -o yaml
+helm get metadata $TARGET_RELEASE -n $TARGET_NAMESPACE
+helm history $TARGET_RELEASE -n $TARGET_NAMESPACE -o json
 ```
 
 Extract:
@@ -65,7 +79,7 @@ Extract:
 - `chartVersion` (from metadata)
 - `currentRevision` (from history, the highest revision number)
 
-### Step 5: Diff and confirm
+### Step 6: Diff and confirm
 
 AskUserQuestion:
 ```
@@ -77,31 +91,31 @@ Rollback hint:  /rwl-rollback --to-revision <currentRevision>
 ```
 Options: "Yes, upgrade" / "No, cancel".
 
-### Step 6: Execute upgrade via helm-ops
+### Step 7: Execute upgrade via helm-ops
 
 ```bash
-chart_ref="${chart_override:-$RWLENV_CHART_REPO/$RWLENV_CHART_NAME}"
+chart_ref="${chart_override:-$TARGET_CHART_REPO/$TARGET_CHART_NAME}"
 
 helm \
-    --kubeconfig="$RWLENV_KUBECONFIG" --kube-context="$RWLENV_CONTEXT" \
-    -n "$RWLENV_NAMESPACE" \
-    upgrade "$RWLENV_RELEASE" "$chart_ref" \
+    --kubeconfig="$TARGET_KUBECONFIG" --kube-context="$TARGET_CONTEXT" \
+    -n "$TARGET_NAMESPACE" \
+    upgrade "$TARGET_RELEASE" "$chart_ref" \
     --version "$chartVersion" \
     --reuse-values \
     --set "$key=$new_tag"
 ```
 
-### Step 7: Wait for rollouts
+### Step 8: Wait for rollouts
 
 For every service sharing the `imageTagKey`, run via k8s-ops:
 ```bash
-selector=$(jq -r --arg s "$svc" '.services[$s].podSelector' "$CATALOG")
-kubectl --kubeconfig="$RWLENV_KUBECONFIG" --context="$RWLENV_CONTEXT" \
-    -n "$RWLENV_NAMESPACE" \
+selector=$(jq -r --arg s "$svc" '.services[$s].podSelector' "$TARGET_CATALOG")
+kubectl --kubeconfig="$TARGET_KUBECONFIG" --context="$TARGET_CONTEXT" \
+    -n "$TARGET_NAMESPACE" \
     rollout status deploy/<resolve-deploy-name-from-podSelector> --timeout=3m
 ```
 
-### Step 8: Report
+### Step 9: Report
 
 ```
 Upgrade complete.
@@ -110,7 +124,7 @@ Rollout:  papi ✓  activities ✓  alerts ✓  ...
 Image:    <imageTagKey>=<new_tag> pulled successfully.
 ```
 
-### Step 9: If any rollout failed
+### Step 10: If any rollout failed
 
 Print the rollback command prominently:
 ```

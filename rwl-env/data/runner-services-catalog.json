@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "chartAppVersion": "0.10.55",
+  "chartName": "runwhen-local",
+  "services": {
+    "runner": {
+      "description": "Runner agent that executes CodeBundles and manages workers",
+      "namespace": "<rwl-env-runner-ns>",
+      "imageTagKey": "runner.image.tag",
+      "podSelector": "app.kubernetes.io/component=runner",
+      "containerName": "runner",
+      "internalPort": 9090,
+      "probes": null,
+      "deploymentWaitFor": []
+    },
+    "otel-collector": {
+      "description": "OpenTelemetry collector for runner metrics",
+      "namespace": "<rwl-env-runner-ns>",
+      "imageTagKey": null,
+      "podSelector": "app.kubernetes.io/component=opentelemetry-collector",
+      "containerName": "opentelemetry-collector",
+      "internalPort": null,
+      "probes": null,
+      "deploymentWaitFor": []
+    }
+  },
+  "databases": {},
+  "subcharts": {}
+}

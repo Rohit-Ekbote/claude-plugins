@@ -59,6 +59,35 @@ Display full details of the rwl-env configured for the current project directory
    ```
    If the helm command fails, print "Cluster unreachable (offline?) — cannot show live state."
 
+### 4b. Runner details
+
+If `$RWLENV_HAS_RUNNER` is `true`:
+
+```
+Runner:
+  Kubeconfig:   $RWLENV_RUNNER_KUBECONFIG
+  Context:      $RWLENV_RUNNER_CONTEXT
+  Namespace:    $RWLENV_RUNNER_NAMESPACE
+  Release:      $RWLENV_RUNNER_RELEASE
+  Chart:        $RWLENV_RUNNER_CHART_REPO/$RWLENV_RUNNER_CHART_NAME
+  Read-Only:    $RWLENV_RUNNER_READ_ONLY
+```
+
+Augment with live runner helm metadata:
+```bash
+helm --kubeconfig="$RWLENV_RUNNER_KUBECONFIG" --kube-context="$RWLENV_RUNNER_CONTEXT" \
+     get metadata "$RWLENV_RUNNER_RELEASE" -n "$RWLENV_RUNNER_NAMESPACE" 2>/dev/null
+```
+
+Show runner live state (chart version, app version, revision, timestamp).
+If unreachable, print "Runner cluster unreachable — cannot show live state."
+
+Runner stale-catalog check:
+```bash
+runner_catalog_av=$(jq -r '.chartAppVersion' "${CLAUDE_PLUGIN_ROOT}/data/runner-services-catalog.json")
+```
+Compare against live runner appVersion and warn if mismatched.
+
 5. Stale-catalog check:
    ```bash
    catalog_av=$(jq -r '.chartAppVersion' "${CLAUDE_PLUGIN_ROOT}/data/services-catalog.json")
