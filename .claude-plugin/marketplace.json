@@ -29,8 +29,8 @@
     },
     {
       "name": "rwl-env",
-      "description": "Helm-deployed RunWhen platform local debugger with deterministic-revert safety",
-      "version": "0.1.0",
+      "description": "Helm-deployed RunWhen platform and runner debugger with deterministic-revert safety",
+      "version": "0.2.0",
       "source": "./rwl-env",
       "author": {
         "name": "Rohit Ekbote"
@@ -40,6 +40,7 @@
         "k8s",
         "helm",
         "runwhen",
+        "runner",
         "debug",
         "single-cluster",
         "safety"
