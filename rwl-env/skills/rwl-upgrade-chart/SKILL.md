@@ -16,22 +16,37 @@ args:
 
 # Upgrade Chart Version
 
-### Step 1: Refuse if read-only.
+### Step 1: Target selection
 
-### Step 2: Read current chart version
+Source `.claude/rwl-env-env`. If `$RWLENV_HAS_RUNNER` is `true`, ask which target:
 
-Via helm-ops: `helm get metadata "$RWLENV_RELEASE" -n "$RWLENV_NAMESPACE"`.
+AskUserQuestion: "Which target?"
+- Options: Platform ($RWLENV_RELEASE in $RWLENV_NAMESPACE), Runner ($RWLENV_RUNNER_RELEASE in $RWLENV_RUNNER_NAMESPACE)
+
+Set variables based on selection:
+- **Platform:** `TARGET_KUBECONFIG=$RWLENV_KUBECONFIG`, `TARGET_CONTEXT=$RWLENV_CONTEXT`, `TARGET_NAMESPACE=$RWLENV_NAMESPACE`, `TARGET_RELEASE=$RWLENV_RELEASE`, `TARGET_CHART_REPO=$RWLENV_CHART_REPO`, `TARGET_CHART_NAME=$RWLENV_CHART_NAME`, `TARGET_READ_ONLY=$RWLENV_READ_ONLY`, `TARGET_CATALOG=${CLAUDE_PLUGIN_ROOT}/data/services-catalog.json`
+- **Runner:** `TARGET_KUBECONFIG=$RWLENV_RUNNER_KUBECONFIG`, `TARGET_CONTEXT=$RWLENV_RUNNER_CONTEXT`, `TARGET_NAMESPACE=$RWLENV_RUNNER_NAMESPACE`, `TARGET_RELEASE=$RWLENV_RUNNER_RELEASE`, `TARGET_CHART_REPO=$RWLENV_RUNNER_CHART_REPO`, `TARGET_CHART_NAME=$RWLENV_RUNNER_CHART_NAME`, `TARGET_READ_ONLY=$RWLENV_RUNNER_READ_ONLY`, `TARGET_CATALOG=${CLAUDE_PLUGIN_ROOT}/data/runner-services-catalog.json`
+
+If no runner configured, skip the prompt and use platform variables.
+
+All subsequent steps use `$TARGET_*` variables instead of `$RWLENV_*`.
+
+### Step 2: Refuse if read-only.
+
+### Step 3: Read current chart version
+
+Via helm-ops: `helm get metadata "$TARGET_RELEASE" -n "$TARGET_NAMESPACE"`.
 Extract `currentVersion`.
 
-### Step 3: Soft-validate target chart exists
+### Step 4: Soft-validate target chart exists
 
 ```bash
-helm show chart "${chart_override:-$RWLENV_CHART_REPO/$RWLENV_CHART_NAME}" --version "$version"
+helm show chart "${chart_override:-$TARGET_CHART_REPO/$TARGET_CHART_NAME}" --version "$version"
 ```
 
 If this fails, warn but allow the user to proceed (might be a private registry that requires auth helm will handle).
 
-### Step 4: Diff and confirm
+### Step 5: Diff and confirm
 
 ```
 Chart version: <currentVersion>  →  <newVersion>
@@ -42,22 +57,22 @@ WARNING: Chart-version upgrades may change CRDs, RBAC, or values defaults.
 ```
 AskUserQuestion: Yes / No.
 
-### Step 5: Execute
+### Step 6: Execute
 
 ```bash
 helm \
-    --kubeconfig="$RWLENV_KUBECONFIG" --kube-context="$RWLENV_CONTEXT" \
-    -n "$RWLENV_NAMESPACE" \
-    upgrade "$RWLENV_RELEASE" "${chart_override:-$RWLENV_CHART_REPO/$RWLENV_CHART_NAME}" \
+    --kubeconfig="$TARGET_KUBECONFIG" --kube-context="$TARGET_CONTEXT" \
+    -n "$TARGET_NAMESPACE" \
+    upgrade "$TARGET_RELEASE" "${chart_override:-$TARGET_CHART_REPO/$TARGET_CHART_NAME}" \
     --version "$version" \
     --reuse-values
 ```
 
-### Step 6: Wait for rollouts and report
+### Step 7: Wait for rollouts and report
 
-Same as `/rwl-upgrade-image-tag` steps 7–8.
+Same as `/rwl-upgrade-image-tag` steps 8–9.
 
-### Step 7: Catalog-staleness check
+### Step 8: Catalog-staleness check
 
 If `$version`'s appVersion (from new release metadata) differs from `services-catalog.json.chartAppVersion`, print:
 ```

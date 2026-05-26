@@ -34,7 +34,7 @@ List all configured rwl-env entries from `~/.claude/rwl-env/envs.json`.
    rwl-env Entries:
 
      NAME          CONTEXT             NAMESPACE   RELEASE   READ-ONLY   DESCRIPTION
-   * helm-dev      k3d-rwl-dev         runwhen     rwl       No          Local k3d
+   * helm-dev      k3d-rwl-dev         runwhen     rwl       No          Local k3d [+runner]
      helm-staging  gke_..._staging     runwhen     rwl       Yes         Customer staging
 
    * = active for current directory (<pwd>)
@@ -44,6 +44,8 @@ List all configured rwl-env entries from `~/.claude/rwl-env/envs.json`.
    ```
 
 5. Mark the active entry with `*`. If no active entry, no marker.
+
+6. For each entry, check if it has a runner configured (`has_runner`). If yes, append `[+runner]` after the description column.
 
 ## Implementation
 
@@ -66,9 +68,11 @@ printf "  %-14s %-22s %-12s %-10s %-11s %s\n" NAME CONTEXT NAMESPACE RELEASE REA
 load_envs | jq -r '.rwlenvs | to_entries[] |
     [.key, .value.kubernetesContext, .value.namespace, .value.releaseName,
      (if .value.readOnly then "Yes" else "No" end),
-     (.value.description // "")] | @tsv' | while IFS=$'\t' read -r name ctx ns rel ro desc; do
+     (.value.description // ""),
+     (if .value.runner then "true" else "false" end)] | @tsv' | while IFS=$'\t' read -r name ctx ns rel ro desc has_run; do
     marker=" "; [[ "$name" == "$active" ]] && marker="*"
-    printf "%s %-14s %-22s %-12s %-10s %-11s %s\n" "$marker" "$name" "$ctx" "$ns" "$rel" "$ro" "$desc"
+    runner_tag=""; [[ "$has_run" == "true" ]] && runner_tag=" [+runner]"
+    printf "%s %-14s %-22s %-12s %-10s %-11s %s\n" "$marker" "$name" "$ctx" "$ns" "$rel" "$ro" "${desc}${runner_tag}"
 done
 
 echo

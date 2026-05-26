@@ -144,6 +144,13 @@ AskUserQuestion:
 - "No (read-write) — allow helm upgrade/rollback" (default for dev)
 - "Yes (read-only) — block all mutations" (recommended for shared/staging)
 
+### Step 7b. Runner (optional)
+
+AskUserQuestion: "Does this environment have a runner?"
+- Options: No (default), Yes
+
+If Yes, collect runner details following the same pattern as /rwl-runner-set steps 3-8. Build runner JSON and include in the atomic jq merge in step 9.
+
 ### Step 8: Set as active for current directory?
 
 AskUserQuestion:

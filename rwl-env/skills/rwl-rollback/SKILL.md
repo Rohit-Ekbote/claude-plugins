@@ -17,34 +17,49 @@ args:
 source .claude/rwl-env-env
 ```
 
-### Step 1: Refuse if read-only
+### Step 1: Target selection
 
-If `$RWLENV_READ_ONLY == "true"`: abort.
+Source `.claude/rwl-env-env`. If `$RWLENV_HAS_RUNNER` is `true`, ask which target:
 
-### Step 2: Show helm history
+AskUserQuestion: "Which target?"
+- Options: Platform ($RWLENV_RELEASE in $RWLENV_NAMESPACE), Runner ($RWLENV_RUNNER_RELEASE in $RWLENV_RUNNER_NAMESPACE)
+
+Set variables based on selection:
+- **Platform:** `TARGET_KUBECONFIG=$RWLENV_KUBECONFIG`, `TARGET_CONTEXT=$RWLENV_CONTEXT`, `TARGET_NAMESPACE=$RWLENV_NAMESPACE`, `TARGET_RELEASE=$RWLENV_RELEASE`, `TARGET_CHART_REPO=$RWLENV_CHART_REPO`, `TARGET_CHART_NAME=$RWLENV_CHART_NAME`, `TARGET_READ_ONLY=$RWLENV_READ_ONLY`, `TARGET_CATALOG=${CLAUDE_PLUGIN_ROOT}/data/services-catalog.json`
+- **Runner:** `TARGET_KUBECONFIG=$RWLENV_RUNNER_KUBECONFIG`, `TARGET_CONTEXT=$RWLENV_RUNNER_CONTEXT`, `TARGET_NAMESPACE=$RWLENV_RUNNER_NAMESPACE`, `TARGET_RELEASE=$RWLENV_RUNNER_RELEASE`, `TARGET_CHART_REPO=$RWLENV_RUNNER_CHART_REPO`, `TARGET_CHART_NAME=$RWLENV_RUNNER_CHART_NAME`, `TARGET_READ_ONLY=$RWLENV_RUNNER_READ_ONLY`, `TARGET_CATALOG=${CLAUDE_PLUGIN_ROOT}/data/runner-services-catalog.json`
+
+If no runner configured, skip the prompt and use platform variables.
+
+All subsequent steps use `$TARGET_*` variables instead of `$RWLENV_*`.
+
+### Step 2: Refuse if read-only
+
+If `$TARGET_READ_ONLY == "true"`: abort.
+
+### Step 3: Show helm history
 
 Via helm-ops:
 ```bash
-helm history "$RWLENV_RELEASE" -n "$RWLENV_NAMESPACE" -o json
+helm history "$TARGET_RELEASE" -n "$TARGET_NAMESPACE" -o json
 ```
 
 Render a table: revision, updated, status, chart, appVersion, description.
 
-### Step 3: Pick target revision
+### Step 4: Pick target revision
 
 If `--to-revision N` was passed, use it. Otherwise AskUserQuestion with each revision as an option (most recent first).
 
-### Step 4: Diff between current and target
+### Step 5: Diff between current and target
 
 ```bash
-helm get values "$RWLENV_RELEASE" --revision "$currentRev" -n "$RWLENV_NAMESPACE" -o yaml > /tmp/current.yaml
-helm get values "$RWLENV_RELEASE" --revision "$targetRev"  -n "$RWLENV_NAMESPACE" -o yaml > /tmp/target.yaml
+helm get values "$TARGET_RELEASE" --revision "$currentRev" -n "$TARGET_NAMESPACE" -o yaml > /tmp/current.yaml
+helm get values "$TARGET_RELEASE" --revision "$targetRev"  -n "$TARGET_NAMESPACE" -o yaml > /tmp/target.yaml
 diff -u /tmp/current.yaml /tmp/target.yaml
 ```
 
 Show a concise diff (changed keys only). Note both `chart` versions too — pull from `helm history -o json`.
 
-### Step 5: Confirm
+### Step 6: Confirm
 
 AskUserQuestion:
 ```
@@ -55,25 +70,25 @@ Roll back to revision <N>?
 ```
 Options: "Yes, rollback" / "No, cancel".
 
-### Step 6: Execute
+### Step 7: Execute
 
 Via helm-ops:
 ```bash
-helm --kubeconfig="$RWLENV_KUBECONFIG" --kube-context="$RWLENV_CONTEXT" \
-    -n "$RWLENV_NAMESPACE" \
-    rollback "$RWLENV_RELEASE" "$targetRev"
+helm --kubeconfig="$TARGET_KUBECONFIG" --kube-context="$TARGET_CONTEXT" \
+    -n "$TARGET_NAMESPACE" \
+    rollback "$TARGET_RELEASE" "$targetRev"
 ```
 
-### Step 7: Wait for rollouts
+### Step 8: Wait for rollouts
 
 Via k8s-ops, for every deployment in the release:
 ```bash
-for dep in $(kubectl get deploy -n "$RWLENV_NAMESPACE" -l app.kubernetes.io/instance="$RWLENV_RELEASE" -o name); do
+for dep in $(kubectl get deploy -n "$TARGET_NAMESPACE" -l app.kubernetes.io/instance="$TARGET_RELEASE" -o name); do
     kubectl rollout status "$dep" --timeout=3m
 done
 ```
 
-### Step 8: Report
+### Step 9: Report
 
 ```
 Rollback complete.
