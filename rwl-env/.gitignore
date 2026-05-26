@@ -1,0 +1,3 @@
+# Local test fixtures
+tests/fixtures/.kube/
+*.tmp

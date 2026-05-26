@@ -26,6 +26,7 @@ INPUT_JSON=$(cat)
 # Extract the command
 ORIGINAL_CMD=$(echo "$INPUT_JSON" | jq -r '.tool_input.command // empty')
 if [[ -z "$ORIGINAL_CMD" ]]; then
+    echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}'
     exit 0
 fi
 
@@ -48,6 +49,7 @@ Run: /rwenv-set <environment>
 EOF
         exit 2
     fi
+    echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}'
     exit 0
 fi
 
@@ -86,14 +88,21 @@ EOF
     fi
 fi
 
-# If command doesn't contain rwenv commands, auto-approve docker exec to dev container
+# If command doesn't contain rwenv commands, check for other auto-approve cases
 if [[ "$CONTAINS_RWENV_CMD" == "false" ]]; then
+    # Auto-approve rwenv plugin scripts (e.g., pg_query.sh) — they enforce their own safety
+    if echo "$ORIGINAL_CMD" | grep -qE "rwenv/scripts/"; then
+        echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}'
+        exit 0
+    fi
+    # Auto-approve docker exec to dev container
     if [[ "$RWENV_MODE" == "container" ]] && [[ -n "${RWENV_DEV_CONTAINER:-}" ]]; then
         if echo "$ORIGINAL_CMD" | grep -qE "docker exec.*$RWENV_DEV_CONTAINER"; then
-            echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+            echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}'
             exit 0
         fi
     fi
+    echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}'
     exit 0
 fi
 
@@ -136,7 +145,7 @@ if [[ "$RWENV_READ_ONLY" == "true" ]]; then
 
     # Check kubectl write ops
     if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z_-])kubectl(\s)"; then
-        kubectl_args=$(echo "$ORIGINAL_CMD" | grep -oE "kubectl\s+[^|;&\"]*" | head -1 | sed 's/kubectl\s*//')
+        kubectl_args=$(echo "$ORIGINAL_CMD" | grep -oE "kubectl\s+[^|;&\"]*" | head -1 | sed 's/kubectl[[:space:]]*//')
         kubectl_subcmd=$(strip_flags "$kubectl_args")
         if is_kubectl_write_operation "$kubectl_subcmd"; then
             cat >&2 <<EOF
@@ -157,7 +166,7 @@ EOF
 
     # Check helm write ops
     if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z_-])helm(\s)"; then
-        helm_args=$(echo "$ORIGINAL_CMD" | grep -oE "helm\s+[^|;&\"]*" | head -1 | sed 's/helm\s*//')
+        helm_args=$(echo "$ORIGINAL_CMD" | grep -oE "helm\s+[^|;&\"]*" | head -1 | sed 's/helm[[:space:]]*//')
         helm_subcmd=$(strip_flags "$helm_args")
         if is_helm_write_operation "$helm_subcmd"; then
             cat >&2 <<EOF
@@ -171,7 +180,7 @@ EOF
 
     # Check flux write ops
     if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z_-])flux(\s)"; then
-        flux_args=$(echo "$ORIGINAL_CMD" | grep -oE "flux\s+[^|;&\"]*" | head -1 | sed 's/flux\s*//')
+        flux_args=$(echo "$ORIGINAL_CMD" | grep -oE "flux\s+[^|;&\"]*" | head -1 | sed 's/flux[[:space:]]*//')
         flux_subcmd=$(strip_flags "$flux_args")
         if is_flux_write_operation "$flux_subcmd"; then
             cat >&2 <<EOF
@@ -251,4 +260,4 @@ EOF
 fi
 
 # --- Auto-approve: command passed all checks ---
-echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}'

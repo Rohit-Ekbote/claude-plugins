@@ -5,8 +5,11 @@
 # while allowing main branch operations in rwenv-related repositories.
 #
 # Rules:
-# - Current project (cwd): Block push/commit/merge to main/master, block tag operations
-# - rwenv repos (not cwd): Allow all git operations including main branch
+# - Current project: Block commit/push/merge to main/master
+# - Current project: Block tag operations unless repo is under github/Rohit-Ekbote
+# - Flux repos + read-only rwenv: Block commit/push to main/master
+# - Flux repos + not read-only: Allow all operations
+# - Other external repos: Allow all operations
 #
 # Claude Code PreToolUse hooks receive JSON on stdin and must use exit code 2 to block.
 
@@ -28,19 +31,27 @@ INPUT_JSON=$(cat)
 # Extract the command from the JSON input
 ORIGINAL_CMD=$(echo "$INPUT_JSON" | jq -r '.tool_input.command // empty')
 
-# If no command found, pass through
+# If no command found, auto-approve
 if [[ -z "$ORIGINAL_CMD" ]]; then
+    echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}'
     exit 0
 fi
 
 # Check if command contains any git operations (handles compound commands)
 if ! echo "$ORIGINAL_CMD" | grep -qE "(^|&&|;|\|\|)\s*git "; then
-    # No git command found anywhere, pass through
+    # No git command — auto-approve so this hook doesn't block other hooks' approval
+    echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}'
     exit 0
 fi
 
 # Get the starting working directory
 STARTING_CWD="${PWD}"
+
+# Source rwenv-env if available (for RWENV_READ_ONLY)
+RWENV_ENV_FILE="${PWD}/.claude/rwenv-env"
+if [[ -f "$RWENV_ENV_FILE" ]]; then
+    source "$RWENV_ENV_FILE"
+fi
 
 # Resolve a path (handles ~, relative paths, etc.)
 resolve_path() {
@@ -159,6 +170,23 @@ is_current_project_dir() {
     return 1  # External repo
 }
 
+# Check if a directory is under an rwenv flux repo
+is_flux_repo_dir() {
+    local check_dir="$1"
+    local normalized_check_dir
+    normalized_check_dir=$(cd "$check_dir" 2>/dev/null && pwd -P) || return 1
+    local flux_repos_dir="${HOME}/.claude/rwenv/flux-repos"
+    [[ "$normalized_check_dir" == "$flux_repos_dir"* ]]
+}
+
+# Check if a directory is under a Rohit-Ekbote owned repo
+is_owned_repo() {
+    local check_dir="$1"
+    local git_root
+    git_root=$(cd "$check_dir" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null) || return 1
+    [[ "$git_root" == *"github.com/Rohit-Ekbote"* || "$git_root" == *"github/Rohit-Ekbote"* ]]
+}
+
 # Get current branch name for a specific directory
 get_current_branch() {
     local dir="${1:-$STARTING_CWD}"
@@ -245,79 +273,63 @@ check_git_safety() {
         return 0
     fi
 
-    # Only enforce protection for current project
-    if ! is_current_project_dir "$effective_cwd"; then
-        return 0  # Allow all operations on external repos
-    fi
+    # --- Determine scope: current project, flux repo, or other external ---
 
-    # Check: git commit while on protected branch
-    if is_git_subcommand "$git_cmd" "commit"; then
-        if is_protected_branch "$current_branch"; then
-            cat >&2 <<EOF
+    if is_current_project_dir "$effective_cwd"; then
+        # === CURRENT PROJECT RULES ===
+
+        # Block: commit to protected branch
+        if is_git_subcommand "$git_cmd" "commit"; then
+            if is_protected_branch "$current_branch"; then
+                cat >&2 <<EOF
 ERROR: Cannot commit directly to '$current_branch' branch in current project.
 
 Current branch: $current_branch
 Project: $git_root
-Effective directory: $effective_cwd
 
 Create a feature branch instead:
   git checkout -b feature/my-change
-  git commit ...
-  git push -u origin feature/my-change
-
-Then create a pull request to merge into $current_branch.
 EOF
-            exit 2
-        fi
-    fi
-
-    # Check: git push to protected branch
-    if is_git_subcommand "$git_cmd" "push"; then
-        local target_branch
-        target_branch=$(get_target_branch_from_cmd "$git_cmd")
-
-        # For plain 'git push', check current branch
-        if [[ -z "$target_branch" ]]; then
-            target_branch="$current_branch"
+                exit 2
+            fi
         fi
 
-        if is_protected_branch "$target_branch"; then
-            cat >&2 <<EOF
+        # Block: push to protected branch
+        if is_git_subcommand "$git_cmd" "push"; then
+            local target_branch
+            target_branch=$(get_target_branch_from_cmd "$git_cmd")
+            if [[ -z "$target_branch" ]]; then
+                target_branch="$current_branch"
+            fi
+            if is_protected_branch "$target_branch"; then
+                cat >&2 <<EOF
 ERROR: Cannot push to '$target_branch' branch in current project.
 
 Command: $git_cmd
 Project: $git_root
-Effective directory: $effective_cwd
 
-Push to a feature branch instead and create a pull request:
-  git push -u origin feature/my-change
-
-Then create a pull request to merge into $target_branch.
+Push to a feature branch and create a pull request instead.
 EOF
-            exit 2
+                exit 2
+            fi
         fi
-    fi
 
-    # Check: git merge into protected branch (when on protected branch)
-    if is_git_subcommand "$git_cmd" "merge"; then
-        if is_protected_branch "$current_branch"; then
-            cat >&2 <<EOF
+        # Block: merge into protected branch
+        if is_git_subcommand "$git_cmd" "merge"; then
+            if is_protected_branch "$current_branch"; then
+                cat >&2 <<EOF
 ERROR: Cannot merge into '$current_branch' branch directly in current project.
-
-Current branch: $current_branch
-Project: $git_root
-Effective directory: $effective_cwd
 
 Use a pull request to merge changes into $current_branch.
 EOF
-            exit 2
+                exit 2
+            fi
         fi
-    fi
 
-    # Check: git tag (block all tag creation in current project)
-    if is_git_subcommand "$git_cmd" "tag" && ! echo "$git_cmd" | grep -qE "git.*tag.*-l"; then
-        # Allow 'git tag -l' (list tags), block all other tag operations
-        cat >&2 <<EOF
+        # Block: tag operations (unless repo is under Rohit-Ekbote)
+        if ! is_owned_repo "$effective_cwd"; then
+            if is_git_subcommand "$git_cmd" "tag" && ! echo "$git_cmd" | grep -qE "git.*tag.*(-l|--list)"; then
+                cat >&2 <<EOF
 ERROR: Cannot create or modify tags in current project.
 
 Command: $git_cmd
@@ -325,71 +337,100 @@ Project: $git_root
 
 Tag operations should be performed through CI/CD pipelines or release processes.
 EOF
-        exit 2
-    fi
+                exit 2
+            fi
 
-    # Check: git push --tags or git push with tag references
-    if is_git_subcommand "$git_cmd" "push" && echo "$git_cmd" | grep -qE "\-\-tags"; then
-        cat >&2 <<EOF
+            if is_git_subcommand "$git_cmd" "push" && echo "$git_cmd" | grep -qE "\-\-tags"; then
+                cat >&2 <<EOF
 ERROR: Cannot push tags in current project.
 
 Command: $git_cmd
 Project: $git_root
-
-Tag operations should be performed through CI/CD pipelines or release processes.
 EOF
-        exit 2
-    fi
+                exit 2
+            fi
 
-    # Check: git push --delete (only block deletion of protected branches)
-    if is_git_subcommand "$git_cmd" "push" && echo "$git_cmd" | grep -qE "\-\-delete"; then
-        if echo "$git_cmd" | grep -qE "\-\-delete[[:space:]]+($PROTECTED_BRANCHES)(\s|$)"; then
-            cat >&2 <<EOF
-ERROR: Cannot delete protected branch in current project.
-
-Command: $git_cmd
-Project: $git_root
-
-Deletion of protected branches should be performed through the web interface or CI/CD.
-EOF
-            exit 2
-        fi
-    fi
-
-    # Check: git push origin :refs/tags/ (another way to delete remote tags)
-    if is_git_subcommand "$git_cmd" "push" && echo "$git_cmd" | grep -qE ":refs/tags/"; then
-        cat >&2 <<EOF
+            if is_git_subcommand "$git_cmd" "push" && echo "$git_cmd" | grep -qE ":refs/tags/"; then
+                cat >&2 <<EOF
 ERROR: Cannot delete remote tags in current project.
 
 Command: $git_cmd
 Project: $git_root
-
-Tag operations should be performed through CI/CD pipelines or release processes.
 EOF
-        exit 2
-    fi
+                exit 2
+            fi
+        fi
 
-    # Check: git checkout main/master (allow, but warn)
-    # This is allowed as reading/checking out is fine
+        # Block: push --delete of protected branches
+        if is_git_subcommand "$git_cmd" "push" && echo "$git_cmd" | grep -qE "\-\-delete"; then
+            if echo "$git_cmd" | grep -qE "\-\-delete[[:space:]]+($PROTECTED_BRANCHES)(\s|$)"; then
+                cat >&2 <<EOF
+ERROR: Cannot delete protected branch in current project.
 
-    # Check: git reset --hard on protected branch
-    if is_git_subcommand "$git_cmd" "reset" && echo "$git_cmd" | grep -qE "\-\-hard"; then
-        if is_protected_branch "$current_branch"; then
-            cat >&2 <<EOF
+Command: $git_cmd
+Project: $git_root
+EOF
+                exit 2
+            fi
+        fi
+
+        # Warn: git reset --hard on protected branch
+        if is_git_subcommand "$git_cmd" "reset" && echo "$git_cmd" | grep -qE "\-\-hard"; then
+            if is_protected_branch "$current_branch"; then
+                cat >&2 <<EOF
 WARNING: Running 'git reset --hard' on '$current_branch' branch.
 
 This is a destructive operation. Proceeding with caution.
 EOF
-            # Allow but warn - user may need to recover from bad state
+            fi
         fi
+
+    elif is_flux_repo_dir "$effective_cwd"; then
+        # === FLUX REPO RULES ===
+
+        # If rwenv is read-only, block commit/push to protected branches
+        if [[ "${RWENV_READ_ONLY:-false}" == "true" ]]; then
+            if is_git_subcommand "$git_cmd" "commit"; then
+                if is_protected_branch "$current_branch"; then
+                    cat >&2 <<EOF
+ERROR: Cannot commit to '$current_branch' in flux repo — rwenv '$RWENV_NAME' is read-only.
+
+Current branch: $current_branch
+Repo: $git_root
+
+Use a non-read-only rwenv for write operations on flux repos.
+EOF
+                    exit 2
+                fi
+            fi
+
+            if is_git_subcommand "$git_cmd" "push"; then
+                local target_branch
+                target_branch=$(get_target_branch_from_cmd "$git_cmd")
+                if [[ -z "$target_branch" ]]; then
+                    target_branch="$current_branch"
+                fi
+                if is_protected_branch "$target_branch"; then
+                    cat >&2 <<EOF
+ERROR: Cannot push to '$target_branch' in flux repo — rwenv '$RWENV_NAME' is read-only.
+
+Repo: $git_root
+
+Use a non-read-only rwenv for write operations on flux repos.
+EOF
+                    exit 2
+                fi
+            fi
+        fi
+        # Not read-only: allow all flux repo operations (including main)
+
     fi
+    # Other external repos: no restrictions
 
     return 0
 }
 
 # Main execution - process all git commands in compound command
-# Track whether all git commands target external repos (for auto-approval)
-ALL_FLUX_REPOS=true
 HAS_GIT_CMD=false
 
 # Split by command separators and process each git command
@@ -410,20 +451,14 @@ while IFS= read -r git_cmd; do
 
     # Check git safety for this command
     check_git_safety "$git_cmd" "$effective_cwd"
-
-    # Track if this git command targets an rwenv flux repo
-    normalized_cwd=$(cd "$effective_cwd" 2>/dev/null && pwd -P) || normalized_cwd=""
-    flux_repos_dir="${HOME}/.claude/rwenv/flux-repos"
-    if [[ -z "$normalized_cwd" || "$normalized_cwd" != "$flux_repos_dir"* ]]; then
-        ALL_FLUX_REPOS=false
-    fi
 done < <(echo "$ORIGINAL_CMD" | sed 's/&&/\n/g; s/;/\n/g; s/||/\n/g')
 
-# Auto-approve git commands that only target rwenv flux repos
-if [[ "$HAS_GIT_CMD" == "true" && "$ALL_FLUX_REPOS" == "true" ]]; then
-    echo "$INPUT_JSON" | jq '.hookSpecificOutput = {permissionDecision: "allow"}'
+# Auto-approve git commands that passed all safety checks
+if [[ "$HAS_GIT_CMD" == "true" ]]; then
+    echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}'
     exit 0
 fi
 
-# If we get here, commands target current project but passed safety checks
+# No git commands — auto-approve so this hook doesn't block other hooks' approval
+echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}'
 exit 0
