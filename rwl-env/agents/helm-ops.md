@@ -25,6 +25,28 @@ Autonomous agent for helm read and write operations against the active rwl-env r
 
 3. **readOnly check:** before any write op, verify `[[ "$RWLENV_READ_ONLY" != "true" ]]`. If readOnly, refuse with: "rwl-env '$RWLENV_NAME' is read-only; helm mutations blocked."
 
+## Target Selection
+
+This agent supports two targets: **platform** (default) and **runner**.
+
+When dispatched, check the prompt for which target is requested. Use the corresponding env vars:
+
+| Target | Kubeconfig | Context | Namespace | Release | Chart Repo | Chart Name | Read-Only |
+|--------|-----------|---------|-----------|---------|-----------|-----------|-----------|
+| platform | `$RWLENV_KUBECONFIG` | `$RWLENV_CONTEXT` | `$RWLENV_NAMESPACE` | `$RWLENV_RELEASE` | `$RWLENV_CHART_REPO` | `$RWLENV_CHART_NAME` | `$RWLENV_READ_ONLY` |
+| runner | `$RWLENV_RUNNER_KUBECONFIG` | `$RWLENV_RUNNER_CONTEXT` | `$RWLENV_RUNNER_NAMESPACE` | `$RWLENV_RUNNER_RELEASE` | `$RWLENV_RUNNER_CHART_REPO` | `$RWLENV_RUNNER_CHART_NAME` | `$RWLENV_RUNNER_READ_ONLY` |
+
+If runner target is requested but `$RWLENV_HAS_RUNNER` is `false` or unset, respond:
+"No runner configured for this rwl-env. Use /rwl-runner-set to add one."
+
+Runner command pattern:
+```bash
+helm --kubeconfig="$RWLENV_RUNNER_KUBECONFIG" \
+     --kube-context="$RWLENV_RUNNER_CONTEXT" \
+     -n "$RWLENV_RUNNER_NAMESPACE" \
+     <subcommand> "$RWLENV_RUNNER_RELEASE" <args>
+```
+
 ## Command Pattern
 
 Every helm invocation MUST include:

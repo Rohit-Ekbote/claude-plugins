@@ -25,6 +25,28 @@ Required: `RWLENV_KUBECONFIG`, `RWLENV_CONTEXT`, `RWLENV_NAMESPACE`. Also load t
 CATALOG="${CLAUDE_PLUGIN_ROOT}/data/services-catalog.json"
 ```
 
+## Target Selection
+
+This agent supports two targets: **platform** (default) and **runner**.
+
+When dispatched, check the prompt for which target is requested. Use the corresponding env vars:
+
+| Target | Kubeconfig var | Context var | Namespace var | Catalog |
+|--------|---------------|-------------|---------------|---------|
+| platform | `$RWLENV_KUBECONFIG` | `$RWLENV_CONTEXT` | `$RWLENV_NAMESPACE` | `data/services-catalog.json` |
+| runner | `$RWLENV_RUNNER_KUBECONFIG` | `$RWLENV_RUNNER_CONTEXT` | `$RWLENV_RUNNER_NAMESPACE` | `data/runner-services-catalog.json` |
+
+If runner target is requested but `$RWLENV_HAS_RUNNER` is `false` or unset, respond:
+"No runner configured for this rwl-env. Use /rwl-runner-set to add one."
+
+Runner command pattern:
+```bash
+kubectl --kubeconfig="$RWLENV_RUNNER_KUBECONFIG" \
+        --context="$RWLENV_RUNNER_CONTEXT" \
+        -n "$RWLENV_RUNNER_NAMESPACE" \
+        <subcommand> <args>
+```
+
 ## Command Pattern
 
 ```bash
