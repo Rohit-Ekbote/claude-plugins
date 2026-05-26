@@ -90,18 +90,54 @@ if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z0-9_-])helm([[:space:]]|$)"; then
         block "helm '$helm_sub' is out of scope for this plugin; use the helm CLI directly outside Claude Code."
     fi
 
-    # Required flags
+    # Determine target: platform or runner
+    HELM_TARGET=""
+
+    # Try platform match (all three flags must match)
     kc_esc=$(escape_regex "$RWLENV_KUBECONFIG")
     ctx_esc=$(escape_regex "$RWLENV_CONTEXT")
     ns_esc=$(escape_regex "$RWLENV_NAMESPACE")
-    echo "$ORIGINAL_CMD" | grep -qE -- "--kubeconfig=${kc_esc}([[:space:]]|$)" \
-        || block "helm command missing or wrong --kubeconfig for rwl-env '$RWLENV_NAME' (expected $RWLENV_KUBECONFIG)."
-    echo "$ORIGINAL_CMD" | grep -qE -- "--kube-context=${ctx_esc}([[:space:]]|$)" \
-        || block "helm command missing or wrong --kube-context for rwl-env '$RWLENV_NAME' (expected $RWLENV_CONTEXT)."
-    echo "$ORIGINAL_CMD" | grep -qE -- "(-n|--namespace)[[:space:]]+${ns_esc}([[:space:]]|$)" \
-        || block "helm command missing or wrong -n/--namespace for rwl-env '$RWLENV_NAME' (expected $RWLENV_NAMESPACE)."
+    if echo "$ORIGINAL_CMD" | grep -qE -- "--kubeconfig=${kc_esc}([[:space:]]|$)" && \
+       echo "$ORIGINAL_CMD" | grep -qE -- "--kube-context=${ctx_esc}([[:space:]]|$)" && \
+       echo "$ORIGINAL_CMD" | grep -qE -- "(-n|--namespace)[[:space:]]+${ns_esc}([[:space:]]|$)"; then
+        HELM_TARGET="platform"
+    fi
 
-    # Release name must equal $RWLENV_RELEASE for upgrade/rollback/get/status/history
+    # Try runner match if platform didn't match and runner is configured
+    if [[ -z "$HELM_TARGET" ]] && [[ "${RWLENV_HAS_RUNNER:-false}" == "true" ]]; then
+        r_kc_esc=$(escape_regex "$RWLENV_RUNNER_KUBECONFIG")
+        r_ctx_esc=$(escape_regex "$RWLENV_RUNNER_CONTEXT")
+        r_ns_esc=$(escape_regex "$RWLENV_RUNNER_NAMESPACE")
+        if echo "$ORIGINAL_CMD" | grep -qE -- "--kubeconfig=${r_kc_esc}([[:space:]]|$)" && \
+           echo "$ORIGINAL_CMD" | grep -qE -- "--kube-context=${r_ctx_esc}([[:space:]]|$)" && \
+           echo "$ORIGINAL_CMD" | grep -qE -- "(-n|--namespace)[[:space:]]+${r_ns_esc}([[:space:]]|$)"; then
+            HELM_TARGET="runner"
+        fi
+    fi
+
+    # If neither matched, produce appropriate error
+    if [[ -z "$HELM_TARGET" ]]; then
+        # Check which specific flag failed to give a useful error message
+        echo "$ORIGINAL_CMD" | grep -qE -- "--kubeconfig=${kc_esc}([[:space:]]|$)" \
+            || block "helm command missing or wrong --kubeconfig for rwl-env '$RWLENV_NAME' (expected $RWLENV_KUBECONFIG)."
+        echo "$ORIGINAL_CMD" | grep -qE -- "--kube-context=${ctx_esc}([[:space:]]|$)" \
+            || block "helm command missing or wrong --kube-context for rwl-env '$RWLENV_NAME' (expected $RWLENV_CONTEXT)."
+        echo "$ORIGINAL_CMD" | grep -qE -- "(-n|--namespace)[[:space:]]+${ns_esc}([[:space:]]|$)" \
+            || block "helm command missing or wrong -n/--namespace for rwl-env '$RWLENV_NAME' (expected $RWLENV_NAMESPACE)."
+        # If all platform flags match individually but not together (shouldn't happen), block generically
+        block "helm command credentials do not match any configured target for rwl-env '$RWLENV_NAME'."
+    fi
+
+    # Set target-specific vars for release and readOnly checks
+    if [[ "$HELM_TARGET" == "runner" ]]; then
+        TARGET_RELEASE="$RWLENV_RUNNER_RELEASE"
+        TARGET_READ_ONLY="$RWLENV_RUNNER_READ_ONLY"
+    else
+        TARGET_RELEASE="$RWLENV_RELEASE"
+        TARGET_READ_ONLY="$RWLENV_READ_ONLY"
+    fi
+
+    # Release name must equal the target's release for upgrade/rollback/get/status/history
     # Extract first positional argument after subcommand
     rel_arg=$(echo "$ORIGINAL_CMD" \
         | sed 's/.*[^a-zA-Z0-9_-]helm/helm/' \
@@ -122,14 +158,14 @@ if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z0-9_-])helm([[:space:]]|$)"; then
         }')
     case "$helm_sub" in
         upgrade|rollback|"get values"|"get manifest"|"get metadata"|"get notes"|"get hooks"|history|status)
-            if [[ -n "$rel_arg" && "$rel_arg" != "$RWLENV_RELEASE" ]]; then
-                block "helm command targets release '$rel_arg' but active rwl-env '$RWLENV_NAME' uses release '$RWLENV_RELEASE'."
+            if [[ -n "$rel_arg" && "$rel_arg" != "$TARGET_RELEASE" ]]; then
+                block "helm command targets release '$rel_arg' but active rwl-env '$RWLENV_NAME' uses release '$TARGET_RELEASE'."
             fi
             ;;
     esac
 
     # readOnly enforcement
-    if [[ "$RWLENV_READ_ONLY" == "true" ]] && is_helm_write_operation "$helm_sub"; then
+    if [[ "$TARGET_READ_ONLY" == "true" ]] && is_helm_write_operation "$helm_sub"; then
         block "helm '$helm_sub' not allowed; rwl-env '$RWLENV_NAME' is read-only."
     fi
 
@@ -138,18 +174,41 @@ fi
 
 # --- Kubectl decision ---
 if echo "$ORIGINAL_CMD" | grep -qE "(^|[^a-zA-Z0-9_-])kubectl([[:space:]]|$)"; then
-    # Escape rwl-env values for safe regex embedding
+    # Determine target: platform or runner
+    KUBECTL_TARGET=""
+
+    # Try platform match (all three flags must match)
     kc_esc=$(escape_regex "$RWLENV_KUBECONFIG")
     ctx_esc=$(escape_regex "$RWLENV_CONTEXT")
     ns_esc=$(escape_regex "$RWLENV_NAMESPACE")
+    if echo "$ORIGINAL_CMD" | grep -qE -- "--kubeconfig=${kc_esc}([[:space:]]|$)" && \
+       echo "$ORIGINAL_CMD" | grep -qE -- "--context=${ctx_esc}([[:space:]]|$)" && \
+       echo "$ORIGINAL_CMD" | grep -qE -- "(-n|--namespace)[[:space:]]+${ns_esc}([[:space:]]|$)"; then
+        KUBECTL_TARGET="platform"
+    fi
 
-    # Required flags
-    echo "$ORIGINAL_CMD" | grep -qE -- "--kubeconfig=${kc_esc}([[:space:]]|$)" \
-        || block "kubectl command missing or wrong --kubeconfig for rwl-env '$RWLENV_NAME' (expected $RWLENV_KUBECONFIG)."
-    echo "$ORIGINAL_CMD" | grep -qE -- "--context=${ctx_esc}([[:space:]]|$)" \
-        || block "kubectl command missing or wrong --context for rwl-env '$RWLENV_NAME' (expected $RWLENV_CONTEXT)."
-    echo "$ORIGINAL_CMD" | grep -qE -- "(-n|--namespace)[[:space:]]+${ns_esc}([[:space:]]|$)" \
-        || block "kubectl command missing or wrong -n/--namespace for rwl-env '$RWLENV_NAME' (expected $RWLENV_NAMESPACE)."
+    # Try runner match if platform didn't match and runner is configured
+    if [[ -z "$KUBECTL_TARGET" ]] && [[ "${RWLENV_HAS_RUNNER:-false}" == "true" ]]; then
+        r_kc_esc=$(escape_regex "$RWLENV_RUNNER_KUBECONFIG")
+        r_ctx_esc=$(escape_regex "$RWLENV_RUNNER_CONTEXT")
+        r_ns_esc=$(escape_regex "$RWLENV_RUNNER_NAMESPACE")
+        if echo "$ORIGINAL_CMD" | grep -qE -- "--kubeconfig=${r_kc_esc}([[:space:]]|$)" && \
+           echo "$ORIGINAL_CMD" | grep -qE -- "--context=${r_ctx_esc}([[:space:]]|$)" && \
+           echo "$ORIGINAL_CMD" | grep -qE -- "(-n|--namespace)[[:space:]]+${r_ns_esc}([[:space:]]|$)"; then
+            KUBECTL_TARGET="runner"
+        fi
+    fi
+
+    # If neither matched, produce appropriate error
+    if [[ -z "$KUBECTL_TARGET" ]]; then
+        echo "$ORIGINAL_CMD" | grep -qE -- "--kubeconfig=${kc_esc}([[:space:]]|$)" \
+            || block "kubectl command missing or wrong --kubeconfig for rwl-env '$RWLENV_NAME' (expected $RWLENV_KUBECONFIG)."
+        echo "$ORIGINAL_CMD" | grep -qE -- "--context=${ctx_esc}([[:space:]]|$)" \
+            || block "kubectl command missing or wrong --context for rwl-env '$RWLENV_NAME' (expected $RWLENV_CONTEXT)."
+        echo "$ORIGINAL_CMD" | grep -qE -- "(-n|--namespace)[[:space:]]+${ns_esc}([[:space:]]|$)" \
+            || block "kubectl command missing or wrong -n/--namespace for rwl-env '$RWLENV_NAME' (expected $RWLENV_NAMESPACE)."
+        block "kubectl command credentials do not match any configured target for rwl-env '$RWLENV_NAME'."
+    fi
 
     # Extract kubectl subcommand (first non-flag token after kubectl, possibly 2-word)
     kubectl_sub=$(echo "$ORIGINAL_CMD" \
