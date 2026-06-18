@@ -23,7 +23,7 @@ is_allowed_value() {
     case "$v" in
         '""'|"''"|'|'|'>'|'{}'|'[]') return 0 ;;
         '<'*'>'|*CHANGEME*|*REPLACE*|*PLACEHOLDER*|*YOUR_*) return 0 ;;
-        *existingSecret*|*Ref*|*valueFrom*) return 0 ;;
+        *existingSecret*|*Ref*|*valueFrom*|*os.environ/*) return 0 ;;
     esac
     return 1
 }

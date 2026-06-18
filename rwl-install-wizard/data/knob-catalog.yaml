@@ -492,6 +492,7 @@ axes:
           - { id: embeddingModelName, prompt: "LiteLLM model_name for embedding (e.g. customer-embedding)" }
           - { id: embeddingModel, prompt: "Upstream model identifier for embedding (e.g. openai/text-embedding-3-small)" }
           - { id: llmApiKeySecret, prompt: "Name of the pre-created Kubernetes Secret holding the upstream API key (existingSecret name — not the key value)" }
+          - { id: llmApiKeyEnv, prompt: "Env var name the LiteLLM key is exposed as (from the providers Secret), e.g. LLM_API_KEY" }
         emits:
           llmGateway:
             deploy: true
@@ -501,14 +502,17 @@ axes:
                 litellm_params:
                   model: "<CHAT_MODEL>"
                   api_base: "<LLM_BASE_URL>"
+                  api_key: "os.environ/<LLM_API_KEY_ENV>"
               - model_name: "<BG_MODEL_NAME>"
                 litellm_params:
                   model: "<BG_MODEL>"
                   api_base: "<LLM_BASE_URL>"
+                  api_key: "os.environ/<LLM_API_KEY_ENV>"
               - model_name: "<EMBEDDING_MODEL_NAME>"
                 litellm_params:
                   model: "<EMBEDDING_MODEL>"
                   api_base: "<LLM_BASE_URL>"
+                  api_key: "os.environ/<LLM_API_KEY_ENV>"
         guide_sections: [llm-endpoint]
         known_issues: [llm-bootstrap-egress, tiktoken-dns-benign, litellm-configmap-placeholder]
 

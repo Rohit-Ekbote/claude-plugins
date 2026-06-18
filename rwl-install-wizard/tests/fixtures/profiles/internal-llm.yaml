@@ -12,3 +12,4 @@ answers:
     embeddingModelName: customer-embedding
     embeddingModel: openai/text-embedding-3-small
     llmApiKeySecret: llm-gateway-key
+    llmApiKeyEnv: LLM_API_KEY

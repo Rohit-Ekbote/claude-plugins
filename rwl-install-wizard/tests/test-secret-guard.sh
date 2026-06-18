@@ -44,6 +44,20 @@ bash "$GUARD" "$tmp" >/dev/null 2>&1
 assert_rc "$?" "0" "non-secret keys (tokenizer/image) exit 0"
 rm -f "$tmp"
 
+echo "== secret-guard: os.environ/ reference is allowed =="
+tmp="$(mktemp "${TMPDIR:-/tmp}/secret-guard-XXXXXX")"
+printf 'litellm_params:\n  api_key: os.environ/LLM_API_KEY\n' > "$tmp"
+bash "$GUARD" "$tmp" >/dev/null 2>&1
+assert_rc "$?" "0" "api_key: os.environ/VAR is allowed (env-var reference)"
+rm -f "$tmp"
+
+echo "== secret-guard: literal api_key is still flagged =="
+tmp="$(mktemp "${TMPDIR:-/tmp}/secret-guard-XXXXXX")"
+printf 'litellm_params:\n  api_key: sk-literalsecretvalue123\n' > "$tmp"
+bash "$GUARD" "$tmp" >/dev/null 2>&1
+assert_rc "$?" "2" "literal api_key value is still flagged"
+rm -f "$tmp"
+
 echo ""
 echo "secret-guard: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
