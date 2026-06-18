@@ -45,3 +45,141 @@ axes:
                 advertise_addr: "127.0.0.1"
         guide_sections: [networking-non-rfc1918]
         known_issues: [mimir-memberlist-no-private-ip]
+
+  - id: cluster-shape
+    title: Cluster environment
+    question: "What domain and storage/ingress infrastructure does this cluster use?"
+    params:
+      - { id: domain, prompt: "Public base domain (e.g. rw.example.com)" }
+      - { id: storageClass, prompt: "StorageClass name (e.g. standard-rwo, gp3, managed-csi)" }
+      - { id: ingressClass, prompt: "IngressClass name (e.g. nginx, traefik)" }
+    options:
+      - id: clusterIssuer
+        label: "cert-manager ClusterIssuer (ACME / Let's Encrypt or private ACME)"
+        overlay: values-cluster.yaml
+        params:
+          - { id: tlsClusterIssuer, prompt: "cert-manager ClusterIssuer name (e.g. letsencrypt-prod)" }
+        emits:
+          global:
+            domain: "<DOMAIN>"
+          ingress:
+            enabled: true
+            className: "<INGRESS_CLASS>"
+            allowSnippetAnnotations: true
+            tls:
+              enabled: true
+              existingSecret: ""
+              certManager:
+                enabled: true
+                clusterIssuer: "<TLS_CLUSTER_ISSUER>"
+          seaweedfs:
+            master:
+              data:
+                storageClass: "<STORAGE_CLASS>"
+            volume:
+              dataDirs:
+                - name: data1
+                  type: persistentVolumeClaim
+                  size: "20Gi"
+                  storageClass: "<STORAGE_CLASS>"
+                  maxVolumes: 60
+            filer:
+              data:
+                type: persistentVolumeClaim
+                storageClass: "<STORAGE_CLASS>"
+                size: 5Gi
+          metricstore:
+            persistence:
+              storageClass: "<STORAGE_CLASS>"
+          qdrant:
+            persistence:
+              storageClassName: "<STORAGE_CLASS>"
+        guide_sections: [cluster-domain, storageclass, ingress-tls]
+        known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered, tls-clusterissuer-vs-issuer]
+
+      - id: issuer
+        label: "cert-manager Issuer (namespace-scoped; runner-control style)"
+        overlay: values-cluster.yaml
+        params:
+          - { id: tlsIssuer, prompt: "cert-manager Issuer name (namespace-scoped, e.g. selfsigned-issuer)" }
+        emits:
+          global:
+            domain: "<DOMAIN>"
+          ingress:
+            enabled: true
+            className: "<INGRESS_CLASS>"
+            allowSnippetAnnotations: true
+            annotations:
+              cert-manager.io/issuer: "<TLS_ISSUER>"
+            tls:
+              enabled: true
+              existingSecret: ""
+              certManager:
+                enabled: true
+                clusterIssuer: ""
+          seaweedfs:
+            master:
+              data:
+                storageClass: "<STORAGE_CLASS>"
+            volume:
+              dataDirs:
+                - name: data1
+                  type: persistentVolumeClaim
+                  size: "20Gi"
+                  storageClass: "<STORAGE_CLASS>"
+                  maxVolumes: 60
+            filer:
+              data:
+                type: persistentVolumeClaim
+                storageClass: "<STORAGE_CLASS>"
+                size: 5Gi
+          metricstore:
+            persistence:
+              storageClass: "<STORAGE_CLASS>"
+          qdrant:
+            persistence:
+              storageClassName: "<STORAGE_CLASS>"
+        guide_sections: [cluster-domain, storageclass, ingress-tls]
+        known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered, tls-clusterissuer-vs-issuer]
+
+      - id: byoSecret
+        label: "Bring-your-own TLS Secret (pre-issued wildcard cert in the release namespace)"
+        overlay: values-cluster.yaml
+        params:
+          - { id: tlsSecret, prompt: "Name of the pre-created Kubernetes TLS Secret holding *.<DOMAIN> cert (e.g. wildcard-rw-example-com-tls)" }
+        emits:
+          global:
+            domain: "<DOMAIN>"
+          ingress:
+            enabled: true
+            className: "<INGRESS_CLASS>"
+            allowSnippetAnnotations: true
+            tls:
+              enabled: true
+              existingSecret: "<TLS_SECRET>"
+              certManager:
+                enabled: false
+          seaweedfs:
+            master:
+              data:
+                storageClass: "<STORAGE_CLASS>"
+            volume:
+              dataDirs:
+                - name: data1
+                  type: persistentVolumeClaim
+                  size: "20Gi"
+                  storageClass: "<STORAGE_CLASS>"
+                  maxVolumes: 60
+            filer:
+              data:
+                type: persistentVolumeClaim
+                storageClass: "<STORAGE_CLASS>"
+                size: 5Gi
+          metricstore:
+            persistence:
+              storageClass: "<STORAGE_CLASS>"
+          qdrant:
+            persistence:
+              storageClassName: "<STORAGE_CLASS>"
+        guide_sections: [cluster-domain, storageclass, ingress-tls]
+        known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered]
