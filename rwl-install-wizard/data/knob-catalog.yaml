@@ -6,8 +6,8 @@
 # chartCompat: ">=0.2.30 <0.3"
 #
 # AUTHORING RULES (enforced by lib/catalog-lint.sh):
-#   - guide_sections / known_issues MUST be single-line inline arrays
-#     (e.g. a list of ids like [foo, bar]), never multi-line block lists.
+#   - guide_sections / known_issues MUST be single-line inline arrays:
+#       guide_sections: [some-id, other-id]
 #   - emits: MUST NOT contain an inline secret literal. Wire secrets by name
 #     (existingSecret / *Ref) only.
 #   - Every option block (- id:) carries a label:. Axes carry title: + question:.

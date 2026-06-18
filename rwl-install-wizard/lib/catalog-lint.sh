@@ -27,7 +27,8 @@ fail() { printf 'catalog-lint: %s\n' "$1" >&2; problems=1; }
 # Extract ids from inline arrays for a given field name; one id per line.
 extract_ids() {
     field="$1"
-    grep -Eo "${field}:[[:space:]]*\[[^]]*\]" "$CATALOG" \
+    grep -v '^[[:space:]]*#' "$CATALOG" \
+        | grep -Eo "${field}:[[:space:]]*\[[^]]*\]" \
         | sed -E "s/${field}:[[:space:]]*\[//; s/\]//" \
         | tr ',' '\n' \
         | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
