@@ -11,6 +11,18 @@
 #   - emits: MUST NOT contain an inline secret literal. Wire secrets by name
 #     (existingSecret / *Ref) only.
 #   - Every option block (- id:) carries a label:. Axes carry title: + question:.
+#
+# FREE-VALUE INPUTS (params):
+#   An axis (or option) may declare a `params:` list for non-sensitive free
+#   values the operator types (domain, registry host, UID, StorageClass name).
+#   Reference each param in `emits:` as an angle-bracket placeholder; the wizard
+#   substitutes it from the operator's answer at GENERATE time. Example:
+#       params:
+#         - { id: domain, prompt: "Public base domain (e.g. rw.example.com)" }
+#       emits:
+#         ingress: { host: "papi.<DOMAIN>" }
+#   Placeholders are <UPPER_SNAKE> of the param id. Never use a param for a
+#   secret — params are shape facts only.
 chartCompat: ">=0.2.30 <0.3"
 axes:
   - id: networking

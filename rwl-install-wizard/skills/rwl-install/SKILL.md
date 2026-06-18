@@ -49,6 +49,10 @@ Secrets are wired by name (`existingSecret`/`*Ref`) only.
      ingressClass, UID/GID, registry hostname/path, endpoint URLs, CA-bundle
      source reference). If a value would be a secret, do NOT collect it — instead
      record that a named secret is required and surface it in the guide.
+   - If the axis declares a `params:` list (free-value inputs like domain,
+     registry host, UID), prompt for each param and store its value in the
+     profile under that axis's answer. These are always non-sensitive shape
+     facts — never a secret.
 
 4. **Write the profile** to `.claude/rwl-install-profile.yaml` (schemaVersion: 1,
    chartCompat, generatedAt = today, answers map). Save even a partial profile
@@ -56,9 +60,11 @@ Secrets are wired by name (`existingSecret`/`*Ref`) only.
 
 5. **GENERATE** (always fully rewrite `rwl-install-out/`):
    1. For each answered option, take its `emits:` fragment and target `overlay:`.
-      Deep-merge fragments per overlay file. Write only overlays that received
-      content. Prepend each overlay with a header: chartCompat, generatedAt,
-      and the axis answers that produced it.
+      Substitute any `<TOKEN>` placeholders in the fragment with the operator's
+      matching `params:` values from the profile (e.g. `<DOMAIN>` →
+      `rw.example.com`). Deep-merge fragments per overlay file. Write only
+      overlays that received content. Prepend each overlay with a header:
+      chartCompat, generatedAt, and the axis answers that produced it.
    2. Collect the de-duplicated union of `guide_sections` ids → assemble
       `USER-GUIDE.md` in INSTALL-CHECKLIST Phase 0→10 order, with command blocks
       that name the generated overlays in `-f` flags and substitute the
