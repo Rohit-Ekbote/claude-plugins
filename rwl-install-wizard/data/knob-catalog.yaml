@@ -569,3 +569,42 @@ axes:
               url: "<QDRANT_URL>"
         guide_sections: [subchart-byo-external]
         known_issues: []
+
+  - id: optional-components
+    title: Optional integrations
+    question: "Which optional integration do you want to enable? (Slack, alert-ingestor public ingress, or Redis deploy pin)"
+    options:
+      - id: none
+        label: "None — minimal install; no optional integrations enabled"
+        emits: {}
+        guide_sections: []
+        known_issues: []
+
+      - id: slack
+        label: "Slack — wire the bundled slackbot to a Slack app via a pre-created credentials Secret"
+        overlay: values-cluster.yaml
+        params:
+          - { id: slackSecretName, prompt: "Name of the pre-created Kubernetes Secret holding SLACK_SIGNING_SECRET, SLACK_CLIENT_ID, SLACK_CLIENT_SECRET (e.g. rw-slack-credentials)" }
+        emits:
+          slack:
+            existingSecret: "<SLACK_SECRET_NAME>"
+        guide_sections: [slack]
+        known_issues: [slackbot-selfhosted]
+
+      - id: alert-ingestor
+        label: "Alert-ingestor — enable ingress snippet annotations required for the alert-ingestor public HTTPS endpoint"
+        overlay: values-cluster.yaml
+        emits:
+          ingress:
+            allowSnippetAnnotations: true
+        guide_sections: [alert-ingestor]
+        known_issues: [alert-ingestor-snippet-annotation]
+
+      - id: redis
+        label: "Redis — explicitly pin redis.deploy: true (bundled Bitnami subchart; default is already true)"
+        overlay: values-cluster.yaml
+        emits:
+          redis:
+            deploy: true
+        guide_sections: [redis-toggle]
+        known_issues: [redis-deploy-switch]

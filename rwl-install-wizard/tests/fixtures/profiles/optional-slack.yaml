@@ -1,0 +1,7 @@
+schemaVersion: 1
+chartCompat: ">=0.2.30 <0.3"
+generatedAt: "2026-06-18"
+answers:
+  optional-components:
+    option: slack
+    slackSecretName: rw-slack
