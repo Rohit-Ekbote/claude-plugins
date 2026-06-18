@@ -1,0 +1,12 @@
+postgresql:
+  auth:
+    password: hunter2supersecret
+vault:
+  token: hvs.CAESIJabcdef0123456789tokenmaterial
+aws:
+  accessKey: AKIAIOSFODNN7EXAMPLE
+tls:
+  key: |
+    -----BEGIN PRIVATE KEY-----
+    MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSk
+    -----END PRIVATE KEY-----
