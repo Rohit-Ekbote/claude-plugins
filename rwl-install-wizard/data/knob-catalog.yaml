@@ -1,0 +1,582 @@
+# knob-catalog.yaml — SOURCE OF TRUTH for rwl-install-wizard.
+#
+# MAINTENANCE CONTRACT: a new chart knob or a newly logged friction is an edit
+# to THIS file (and a data/ file), never a change to the skills.
+#
+# chartCompat: ">=0.2.37 <0.3"
+#   Floor is 0.2.37: the catalog assumes the chart auto-derives CORS/CSRF/login
+#   hosts from global.domain (browserOrigins.autoDerive, default in 0.2.37+), so
+#   cluster-shape does not emit those keys. Raise the floor if a future axis
+#   relies on a newer chart feature.
+#
+# AUTHORING RULES (enforced by lib/catalog-lint.sh):
+#   - guide_sections / known_issues MUST be single-line inline arrays:
+#       guide_sections: [some-id, other-id]
+#   - emits: MUST NOT contain an inline secret literal. Wire secrets by name
+#     (existingSecret / *Ref) only.
+#   - Every option block (- id:) carries a label:. Axes carry title: + question:.
+#
+# FREE-VALUE INPUTS (params):
+#   An axis (or option) may declare a `params:` list for non-sensitive free
+#   values the operator types (domain, registry host, UID, StorageClass name).
+#   Reference each param in `emits:` as an angle-bracket placeholder; the wizard
+#   substitutes it from the operator's answer at GENERATE time. Example:
+#       params:
+#         - { id: domain, prompt: "Public base domain (e.g. rw.example.com)" }
+#       emits:
+#         ingress: { host: "papi.<DOMAIN>" }
+#   Placeholders are <UPPER_SNAKE> of the param id. Never use a param for a
+#   secret — params are shape facts only.
+chartCompat: ">=0.2.37 <0.3"
+axes:
+  - id: networking
+    title: Pod network CIDR
+    question: "Is your cluster's pod network in standard private (RFC1918) ranges?"
+    options:
+      - id: rfc1918
+        label: "Yes — 10.x / 172.16–31.x / 192.168.x (default)"
+        emits: {}
+        guide_sections: []
+        known_issues: []
+      - id: non-rfc1918
+        label: "No — non-RFC1918 space (e.g. carrier/DoD 21.121.x)"
+        overlay: values-cluster.yaml
+        emits:
+          metricstore:
+            config:
+              memberlist:
+                bind_addr: ["127.0.0.1"]
+                advertise_addr: "127.0.0.1"
+        guide_sections: [networking-non-rfc1918]
+        known_issues: [mimir-memberlist-no-private-ip]
+
+  - id: cluster-shape
+    title: Cluster environment
+    question: "What domain and storage/ingress infrastructure does this cluster use?"
+    params:
+      - { id: domain, prompt: "Public base domain (e.g. rw.example.com)" }
+      - { id: ingressClass, prompt: "IngressClass name (e.g. nginx, traefik)" }
+    options:
+      - id: clusterIssuer
+        label: "cert-manager ClusterIssuer (ACME / Let's Encrypt or private ACME)"
+        overlay: values-cluster.yaml
+        params:
+          - { id: tlsClusterIssuer, prompt: "cert-manager ClusterIssuer name (e.g. letsencrypt-prod)" }
+        emits:
+          global:
+            domain: "<DOMAIN>"
+          ingress:
+            enabled: true
+            className: "<INGRESS_CLASS>"
+            allowSnippetAnnotations: true
+            tls:
+              enabled: true
+              existingSecret: ""
+              certManager:
+                enabled: true
+                clusterIssuer: "<TLS_CLUSTER_ISSUER>"
+        guide_sections: [cluster-domain, ingress-tls]
+        known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered, tls-clusterissuer-vs-issuer]
+
+      - id: issuer
+        label: "cert-manager Issuer (namespace-scoped; runner-control style)"
+        overlay: values-cluster.yaml
+        params:
+          - { id: tlsIssuer, prompt: "cert-manager Issuer name (namespace-scoped, e.g. selfsigned-issuer)" }
+        emits:
+          global:
+            domain: "<DOMAIN>"
+          ingress:
+            enabled: true
+            className: "<INGRESS_CLASS>"
+            allowSnippetAnnotations: true
+            annotations:
+              cert-manager.io/issuer: "<TLS_ISSUER>"
+            tls:
+              enabled: true
+              existingSecret: ""
+              certManager:
+                enabled: true
+                clusterIssuer: ""
+        guide_sections: [cluster-domain, ingress-tls]
+        known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered, tls-clusterissuer-vs-issuer]
+
+      - id: byoSecret
+        label: "Bring-your-own TLS Secret (pre-issued wildcard cert in the release namespace)"
+        overlay: values-cluster.yaml
+        params:
+          - { id: tlsSecret, prompt: "Name of the pre-created Kubernetes TLS Secret holding *.<DOMAIN> cert (e.g. wildcard-rw-example-com-tls)" }
+        emits:
+          global:
+            domain: "<DOMAIN>"
+          ingress:
+            enabled: true
+            className: "<INGRESS_CLASS>"
+            allowSnippetAnnotations: true
+            tls:
+              enabled: true
+              existingSecret: "<TLS_SECRET>"
+              certManager:
+                enabled: false
+        guide_sections: [cluster-domain, ingress-tls]
+        known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered]
+
+  - id: registry-routing
+    title: Container registry routing
+    question: "How do cluster nodes pull container images — direct from public upstreams, or via a customer-side mirror?"
+    options:
+      - id: connected
+        label: "Connected — pull direct from public upstreams (no mirror)"
+        emits: {}
+        guide_sections: [registry-connected]
+        known_issues: []
+
+      - id: flat-mirror
+        label: "Flat mirror — single mirror host fronts all upstreams (Harbor project, ECR pull-through, Distribution mirror)"
+        overlay: values-registry.yaml
+        params:
+          - { id: registryHost, prompt: "Mirror registry host + path prefix (e.g. harbor.corp.example/runwhen or jcr.example.com/runwhen)" }
+          - { id: pullSecretName, prompt: "Name of the pre-created Kubernetes image pull Secret (e.g. harbor-pull-secret)" }
+        emits:
+          registryOverride: "<REGISTRY_HOST>"
+          images:
+            pullSecrets:
+              - name: "<PULL_SECRET_NAME>"
+          global:
+            imagePullSecrets:
+              - name: "<PULL_SECRET_NAME>"
+        guide_sections: [registry-flat-mirror, subchart-alias-mirroring]
+        known_issues: [hardcoded-image-refs, thin-chart-subchart-aliases]
+
+      - id: jfrog-per-upstream
+        label: "JFrog per-upstream — one virtual repo per upstream registry (Artifactory / JCR)"
+        overlay: values-registry.yaml
+        params:
+          - { id: registryHost, prompt: "JFrog / JCR hostname (e.g. jcr.example.com or artifactory.corp.example)" }
+          - { id: pullSecretName, prompt: "Name of the pre-created Kubernetes image pull Secret (e.g. jcr-pull-secret)" }
+        emits:
+          global:
+            imagePullSecrets:
+              - name: "<PULL_SECRET_NAME>"
+            utility:
+              busybox:
+                registry: "<REGISTRY_HOST>/docker-dockerhub"
+              dbInit:
+                registry: "<REGISTRY_HOST>/docker-dockerhub"
+              vaultClient:
+                registry: "<REGISTRY_HOST>/docker-dockerhub"
+          images:
+            pullSecrets:
+              - name: "<PULL_SECRET_NAME>"
+            registry: "<REGISTRY_HOST>/docker-runwhen-self-hosted/runwhen-self-hosted/platform-images"
+            mcpServer:
+              registry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib"
+            ccCatalog:
+              registry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib"
+            llmGateway:
+              registry: "<REGISTRY_HOST>/docker-ghcr/berriai"
+          runnerMetricProxy:
+            image:
+              registry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib"
+          postgresql:
+            spilo:
+              image:
+                registry: "<REGISTRY_HOST>/docker-ghcr/zalando"
+            pgbouncer:
+              image:
+                registry: "<REGISTRY_HOST>/docker-dockerhub"
+          vault:
+            autoUnseal:
+              image:
+                registry: "<REGISTRY_HOST>/docker-dockerhub"
+            backup:
+              image:
+                registry: "<REGISTRY_HOST>/docker-dockerhub"
+          metricstore:
+            image:
+              registry: "<REGISTRY_HOST>/docker-dockerhub"
+        guide_sections: [registry-jfrog-per-upstream, subchart-alias-mirroring]
+        known_issues: [hardcoded-image-refs, embedder-airgap-hang, thin-chart-subchart-aliases, seaweedfs-image-chrislusf]
+
+  - id: storage-persistence
+    title: Persistence tier
+    question: "How should rebuildable components (Mimir, Neo4j, Redis) and SeaweedFS persist their data?"
+    params:
+      - { id: storageClass, prompt: "StorageClass name for durable volumes (e.g. standard-rwo, gp3, managed-csi)" }
+    options:
+      - id: pvc
+        label: "Durable PVCs — all components on PVCs (default; cluster must have an RWO StorageClass)"
+        overlay: values-storage.yaml
+        emits:
+          seaweedfs:
+            master:
+              data:
+                storageClass: "<STORAGE_CLASS>"
+            volume:
+              dataDirs:
+                - name: data1
+                  type: persistentVolumeClaim
+                  size: "20Gi"
+                  storageClass: "<STORAGE_CLASS>"
+                  maxVolumes: 60
+            filer:
+              data:
+                type: persistentVolumeClaim
+                storageClass: "<STORAGE_CLASS>"
+                size: 5Gi
+          metricstore:
+            persistence:
+              storageClass: "<STORAGE_CLASS>"
+          qdrant:
+            persistence:
+              storageClassName: "<STORAGE_CLASS>"
+        guide_sections: [storage-pvc, storageclass]
+        known_issues: [postgres-storage-kind]
+
+      - id: nfs
+        label: "NFS posture — SeaweedFS data on NFS PVCs; rebuildables (Mimir, Redis, Neo4j) on emptyDir; Qdrant on emptyDir (NFS not supported by vendor)"
+        overlay: values-storage.yaml
+        emits:
+          seaweedfs:
+            master:
+              data:
+                storageClass: "<STORAGE_CLASS>"
+            volume:
+              dataDirs:
+                - name: data1
+                  type: persistentVolumeClaim
+                  size: "20Gi"
+                  storageClass: "<STORAGE_CLASS>"
+                  maxVolumes: 60
+            filer:
+              data:
+                type: persistentVolumeClaim
+                storageClass: "<STORAGE_CLASS>"
+                size: 5Gi
+              logs:
+                type: emptyDir
+            s3:
+              logs:
+                type: emptyDir
+          redis:
+            master:
+              persistence:
+                enabled: false
+          neo4j:
+            volumes:
+              data:
+                mode: volume
+                volume:
+                  emptyDir:
+                    sizeLimit: 5Gi
+          metricstore:
+            persistence:
+              kind: emptyDir
+              size: 10Gi
+          qdrant:
+            useSubchart: false
+        guide_sections: [storage-nfs]
+        known_issues: [postgres-storage-kind, mimir-wal-ephemeral, qdrant-no-nfs]
+
+      - id: emptyDir
+        label: "emptyDir (lab/ephemeral) — rebuildables on emptyDir; no RWO StorageClass required"
+        overlay: values-storage.yaml
+        emits:
+          metricstore:
+            persistence:
+              kind: emptyDir
+              size: 10Gi
+          redis:
+            master:
+              persistence:
+                enabled: false
+          neo4j:
+            volumes:
+              data:
+                mode: volume
+                volume:
+                  emptyDir:
+                    sizeLimit: 5Gi
+          postgresql:
+            spilo:
+              persistence:
+                kind: emptyDir
+          qdrant:
+            useSubchart: false
+        guide_sections: [storage-emptydir]
+        known_issues: [postgres-storage-kind, mimir-wal-ephemeral, qdrant-no-nfs]
+
+  - id: security-posture
+    title: Pod security hardening
+    question: "How should pods run — chart defaults (already hardened) or an explicit overlay with your own UID/GID and webhook labels?"
+    options:
+      - id: default
+        label: "Default — chart ships hardened by default (non-root uid 1000, read-only rootfs, caps dropped); no overlay needed"
+        emits: {}
+        guide_sections: []
+        known_issues: []
+
+      - id: hardened
+        label: "Explicit hardened overlay — set your own UID/GID and optional webhook labels; satisfies PSS restricted"
+        overlay: values-posture.yaml
+        params:
+          - { id: runAsUid, prompt: "Non-root UID for first-party pods (e.g. 65534; must not be 0 or 500)" }
+          - { id: runAsGid, prompt: "GID for first-party pods (e.g. 65534; keep equal to runAsUid for volume ownership)" }
+        emits:
+          global:
+            podSecurityContext:
+              runAsNonRoot: true
+              runAsUser: "<RUN_AS_UID>"
+              runAsGroup: "<RUN_AS_GID>"
+              fsGroup: "<RUN_AS_GID>"
+              seccompProfile:
+                type: RuntimeDefault
+            containerSecurityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+        guide_sections: [nonroot-uid, readonly-rootfs, webhook-labels-securitycontext]
+        known_issues: [vault-init-home-perms, llm-gateway-nonroot-prisma, mass-run-as-root-failures]
+
+  - id: object-storage
+    title: Object storage backend
+    question: "Which S3 backend should the platform use for workspace uploads, Mimir blocks, and backup storage?"
+    options:
+      - id: seaweedfs
+        label: "Bundled SeaweedFS — Apache 2.0, namespace-scoped, no CRDs (default)"
+        overlay: values-storage.yaml
+        emits:
+          objectStorage:
+            kind: seaweedfs
+          seaweedfs:
+            deploy: true
+        guide_sections: [object-storage-seaweedfs]
+        known_issues: [seaweedfs-s3-access-denied]
+
+      - id: external-s3
+        label: "External S3 — AWS S3, GCS S3-interop, Backblaze, or any S3-compatible endpoint"
+        overlay: values-storage.yaml
+        params:
+          - { id: s3Endpoint, prompt: "S3 endpoint URL (e.g. https://s3.amazonaws.com or http://internal-s3:9000)" }
+          - { id: s3Bucket, prompt: "Shared workspace bucket name (e.g. shared-workspace)" }
+          - { id: s3ExistingSecret, prompt: "Name of the pre-created Kubernetes Secret holding S3 credentials (existingSecret)" }
+        emits:
+          objectStorage:
+            kind: external
+            external:
+              host: "<S3_ENDPOINT>"
+              internalHost: "<S3_ENDPOINT>"
+              bucket: "<S3_BUCKET>"
+            existingSecret: "<S3_EXISTING_SECRET>"
+          seaweedfs:
+            deploy: false
+        guide_sections: [object-storage-external-s3]
+        known_issues: []
+
+  - id: rbac-identity
+    title: RBAC and identity posture
+    question: "Who creates ServiceAccounts and ClusterRoleBindings — the chart, or your RBAC pipeline?"
+    options:
+      - id: chart-managed
+        label: "Chart-managed — chart creates ServiceAccounts and RoleBindings normally (default)"
+        emits: {}
+        guide_sections: []
+        known_issues: []
+
+      - id: byo
+        label: "BYO — enterprise RBAC pipeline pre-provisions SAs; chart must not create them or any ClusterRoleBindings"
+        overlay: values-posture.yaml
+        params:
+          - { id: platformSaName, prompt: "Pre-provisioned ServiceAccount name for platform backend pods (e.g. rw-platform)" }
+          - { id: vaultBackupSaName, prompt: "Pre-provisioned ServiceAccount name for vault-backup CronJob (e.g. rw-vault-backup)" }
+          - { id: postgresqlSaName, prompt: "Pre-provisioned ServiceAccount name for Spilo/postgresql (e.g. rw-postgresql)" }
+        emits:
+          serviceAccount:
+            platform:
+              create: false
+              name: "<PLATFORM_SA_NAME>"
+            vaultBackup:
+              create: false
+              name: "<VAULT_BACKUP_SA_NAME>"
+            postgresql:
+              create: false
+              name: "<POSTGRESQL_SA_NAME>"
+          vault:
+            injector:
+              enabled: false
+            server:
+              authDelegator:
+                enabled: false
+          global:
+            imagePullSecrets: []
+          images:
+            pullSecrets: []
+        guide_sections: [byo-serviceaccounts, no-clusterrolebindings, vault-injector-authdelegator, no-imagepullsecrets]
+        known_issues: [vault-clusterrolebinding-blocked, sa-rolebinding-reserved]
+
+  - id: internal-ca
+    title: Internal / corporate CA trust
+    question: "Do platform pods need to trust a private/corporate CA for in-cluster HTTPS (ingress TLS, internal git, webhooks)?"
+    options:
+      - id: public-ca
+        label: "No — platform trusts public CAs only (default)"
+        emits: {}
+        guide_sections: []
+        known_issues: []
+
+      - id: internal-ca
+        label: "Yes — inject a private/corporate CA trust bundle via a pre-created Secret"
+        overlay: values-cluster.yaml
+        params:
+          - { id: caBundleSecret, prompt: "Name of the pre-created Kubernetes Secret holding the CA bundle (e.g. corp-ca-bundle)" }
+          - { id: bundleFile, prompt: "Filename key inside the Secret (e.g. ca-bundle.crt — must match --from-file=<key> used when creating the Secret)" }
+        emits:
+          global:
+            trustBundle:
+              enabled: true
+              existingSecret: "<CA_BUNDLE_SECRET>"
+              bundleFile: "<BUNDLE_FILE>"
+              setEnvVars: true
+        guide_sections: [internal-ca-trust-bundle]
+        known_issues: [mcp-server-ssl-verify-failed]
+
+  - id: llm-endpoint
+    title: LLM endpoint
+    question: "How should the platform reach an LLM for chat, background summarisation, and embedding?"
+    options:
+      - id: default-bootstrap
+        label: "Default — chart deploys the bundled LiteLLM gateway; operator supplies model_list and providersExistingSecret separately"
+        overlay: values-cluster.yaml
+        emits: {}
+        guide_sections: [llm-endpoint]
+        known_issues: [llm-bootstrap-egress]
+
+      - id: internal-openai
+        label: "Internal OpenAI-compatible endpoint — wire a corporate or on-premises model gateway via LiteLLM proxy"
+        overlay: values-cluster.yaml
+        params:
+          - { id: llmBaseUrl, prompt: "LLM endpoint base URL (e.g. https://llm.internal.example/v1 — non-secret)" }
+          - { id: chatModelName, prompt: "LiteLLM model_name for chat (e.g. customer-chat — must be unique per model role)" }
+          - { id: chatModel, prompt: "Upstream model identifier for chat (e.g. openai/gpt-4o or azure/my-gpt4o)" }
+          - { id: bgModelName, prompt: "LiteLLM model_name for background/summarisation (e.g. customer-bg)" }
+          - { id: bgModel, prompt: "Upstream model identifier for background (e.g. openai/gpt-4o-mini)" }
+          - { id: embeddingModelName, prompt: "LiteLLM model_name for embedding (e.g. customer-embedding)" }
+          - { id: embeddingModel, prompt: "Upstream model identifier for embedding (e.g. openai/text-embedding-3-small)" }
+          - { id: llmApiKeySecret, prompt: "Name of the pre-created Kubernetes Secret holding the upstream API key (existingSecret name — not the key value)" }
+          - { id: llmApiKeyEnv, prompt: "Env var name the LiteLLM key is exposed as (from the providers Secret), e.g. LLM_API_KEY" }
+        emits:
+          llmGateway:
+            deploy: true
+            providersExistingSecret: "<LLM_API_KEY_SECRET>"
+            models:
+              - model_name: "<CHAT_MODEL_NAME>"
+                litellm_params:
+                  model: "<CHAT_MODEL>"
+                  api_base: "<LLM_BASE_URL>"
+                  api_key: "os.environ/<LLM_API_KEY_ENV>"
+              - model_name: "<BG_MODEL_NAME>"
+                litellm_params:
+                  model: "<BG_MODEL>"
+                  api_base: "<LLM_BASE_URL>"
+                  api_key: "os.environ/<LLM_API_KEY_ENV>"
+              - model_name: "<EMBEDDING_MODEL_NAME>"
+                litellm_params:
+                  model: "<EMBEDDING_MODEL>"
+                  api_base: "<LLM_BASE_URL>"
+                  api_key: "os.environ/<LLM_API_KEY_ENV>"
+        guide_sections: [llm-endpoint]
+        known_issues: [llm-bootstrap-egress, tiktoken-dns-benign, litellm-configmap-placeholder]
+
+  - id: subcharts
+    title: Datastore deployment mode
+    question: "Should datastores (PostgreSQL, Redis, Neo4j, Vault, Qdrant) run as bundled in-cluster subcharts, or should the platform connect to externally-managed services?"
+    options:
+      - id: bundled-all
+        label: "Bundled — deploy all five datastores as in-cluster subcharts (default)"
+        emits: {}
+        guide_sections: [subchart-bundled]
+        known_issues: [postgres-bundled-single-pod, vault-order-of-operations, neo4j-workload-name]
+
+      - id: byo-datastores
+        label: "BYO external — connect to externally-managed datastores (disable bundled subcharts)"
+        overlay: values-cluster.yaml
+        params:
+          - { id: pgHost, prompt: "PostgreSQL external host (e.g. pg.example.com or Cloud SQL private IP)" }
+          - { id: pgPort, prompt: "PostgreSQL port (default 5432)" }
+          - { id: pgDatabase, prompt: "PostgreSQL database name (default core)" }
+          - { id: pgUsername, prompt: "PostgreSQL username (e.g. runwhen)" }
+          - { id: redisHost, prompt: "Redis external host (e.g. redis.example.com or managed Redis endpoint)" }
+          - { id: redisPort, prompt: "Redis port (default 6379)" }
+          - { id: neo4jUri, prompt: "Neo4j Bolt URI (e.g. bolt://neo4j.example.com:7687 — NOT NFS-backed)" }
+          - { id: neo4jUsername, prompt: "Neo4j username (e.g. neo4j)" }
+          - { id: vaultAddress, prompt: "Vault HTTPS address (e.g. https://vault.example.com — must have runner-system KV mount + k8s auth pre-configured)" }
+          - { id: qdrantUrl, prompt: "Qdrant HTTP URL (e.g. http://qdrant.example.com:6333)" }
+        emits:
+          postgresql:
+            kind: external
+            deploy: false
+            external:
+              host: "<PG_HOST>"
+              port: "<PG_PORT>"
+              database: "<PG_DATABASE>"
+              username: "<PG_USERNAME>"
+          redis:
+            deploy: false
+            external:
+              host: "<REDIS_HOST>"
+              port: "<REDIS_PORT>"
+          neo4j:
+            deploy: false
+            external:
+              uri: "<NEO4J_URI>"
+              username: "<NEO4J_USERNAME>"
+          vault:
+            deploy: false
+            address: "<VAULT_ADDRESS>"
+          qdrant:
+            deploy: false
+            useSubchart: false
+            external:
+              url: "<QDRANT_URL>"
+        guide_sections: [subchart-byo-external]
+        known_issues: []
+
+  - id: optional-components
+    title: Optional integrations
+    question: "Which optional integration do you want to enable? (Slack, alert-ingestor public ingress, or Redis deploy pin)"
+    options:
+      - id: none
+        label: "None — minimal install; no optional integrations enabled"
+        emits: {}
+        guide_sections: []
+        known_issues: []
+
+      - id: slack
+        label: "Slack — wire the bundled slackbot to a Slack app via a pre-created credentials Secret"
+        overlay: values-cluster.yaml
+        params:
+          - { id: slackSecretName, prompt: "Name of the pre-created Kubernetes Secret holding SLACK_SIGNING_SECRET, SLACK_CLIENT_ID, SLACK_CLIENT_SECRET (e.g. rw-slack-credentials)" }
+        emits:
+          slack:
+            existingSecret: "<SLACK_SECRET_NAME>"
+        guide_sections: [slack]
+        known_issues: [slackbot-selfhosted]
+
+      - id: alert-ingestor
+        label: "Alert-ingestor — enable ingress snippet annotations required for the alert-ingestor public HTTPS endpoint"
+        overlay: values-cluster.yaml
+        emits:
+          ingress:
+            allowSnippetAnnotations: true
+        guide_sections: [alert-ingestor]
+        known_issues: [alert-ingestor-snippet-annotation]
+
+      - id: redis
+        label: "Redis — explicitly pin redis.deploy: true (bundled Bitnami subchart; default is already true)"
+        overlay: values-cluster.yaml
+        emits:
+          redis:
+            deploy: true
+        guide_sections: [redis-toggle]
+        known_issues: [redis-deploy-switch]

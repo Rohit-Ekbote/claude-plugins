@@ -1,0 +1,21 @@
+# rbac-identity: byo (platformSaName=rw-platform, vaultBackupSaName=rw-vault-backup, postgresqlSaName=rw-postgresql)
+serviceAccount:
+  platform:
+    create: false
+    name: "rw-platform"
+  vaultBackup:
+    create: false
+    name: "rw-vault-backup"
+  postgresql:
+    create: false
+    name: "rw-postgresql"
+vault:
+  injector:
+    enabled: false
+  server:
+    authDelegator:
+      enabled: false
+global:
+  imagePullSecrets: []
+images:
+  pullSecrets: []

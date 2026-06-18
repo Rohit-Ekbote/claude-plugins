@@ -1,0 +1,15 @@
+# Clean: secrets referenced by name only, never inline.
+global:
+  imagePullSecrets: []
+ccCatalog:
+  auth:
+    existingSecret: cc-catalog-svc-auth
+seaweedfs:
+  s3:
+    existingConfigSecret: rw-seaweedfs-identities
+papi:
+  oidc:
+    clientSecretRef:
+      name: papi-oidc
+      key: clientSecret
+domain: rw.example.com

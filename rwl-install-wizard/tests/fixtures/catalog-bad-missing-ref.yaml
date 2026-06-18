@@ -1,0 +1,12 @@
+axes:
+  - id: demo
+    title: Demo
+    question: "Demo?"
+    options:
+      - id: yes
+        label: "Yes"
+        overlay: values-cluster.yaml
+        emits:
+          demo: { enabled: true }
+        guide_sections: [demo-section]
+        known_issues: [this-id-has-no-file]

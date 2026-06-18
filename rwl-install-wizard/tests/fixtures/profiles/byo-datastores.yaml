@@ -1,0 +1,16 @@
+schemaVersion: 1
+chartCompat: ">=0.2.37 <0.3"
+generatedAt: "2026-06-18"
+answers:
+  subcharts:
+    option: byo-datastores
+    pgHost: pg.example.com
+    pgPort: "5432"
+    pgDatabase: core
+    pgUsername: runwhen
+    redisHost: redis.example.com
+    redisPort: "6379"
+    neo4jUri: bolt://neo4j.example.com:7687
+    neo4jUsername: neo4j
+    vaultAddress: https://vault.example.com
+    qdrantUrl: http://qdrant.example.com:6333

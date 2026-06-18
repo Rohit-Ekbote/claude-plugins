@@ -1,0 +1,27 @@
+# subcharts: byo-datastores (pgHost=pg.example.com, pgPort=5432, pgDatabase=core, pgUsername=runwhen, redisHost=redis.example.com, redisPort=6379, neo4jUri=bolt://neo4j.example.com:7687, neo4jUsername=neo4j, vaultAddress=https://vault.example.com, qdrantUrl=http://qdrant.example.com:6333)
+postgresql:
+  kind: external
+  deploy: false
+  external:
+    host: pg.example.com
+    port: "5432"
+    database: core
+    username: runwhen
+redis:
+  deploy: false
+  external:
+    host: redis.example.com
+    port: "6379"
+neo4j:
+  deploy: false
+  external:
+    uri: bolt://neo4j.example.com:7687
+    username: neo4j
+vault:
+  deploy: false
+  address: https://vault.example.com
+qdrant:
+  deploy: false
+  useSubchart: false
+  external:
+    url: http://qdrant.example.com:6333

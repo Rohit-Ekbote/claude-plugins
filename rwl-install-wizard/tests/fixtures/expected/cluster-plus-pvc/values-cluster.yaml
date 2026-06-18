@@ -1,0 +1,12 @@
+global:
+  domain: "rw.example.com"
+ingress:
+  enabled: true
+  className: nginx
+  allowSnippetAnnotations: true
+  tls:
+    enabled: true
+    existingSecret: ""
+    certManager:
+      enabled: true
+      clusterIssuer: letsencrypt-prod
