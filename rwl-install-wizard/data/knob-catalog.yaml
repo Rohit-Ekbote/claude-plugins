@@ -55,7 +55,6 @@ axes:
     question: "What domain and storage/ingress infrastructure does this cluster use?"
     params:
       - { id: domain, prompt: "Public base domain (e.g. rw.example.com)" }
-      - { id: storageClass, prompt: "StorageClass name (e.g. standard-rwo, gp3, managed-csi)" }
       - { id: ingressClass, prompt: "IngressClass name (e.g. nginx, traefik)" }
     options:
       - id: clusterIssuer
@@ -76,29 +75,7 @@ axes:
               certManager:
                 enabled: true
                 clusterIssuer: "<TLS_CLUSTER_ISSUER>"
-          seaweedfs:
-            master:
-              data:
-                storageClass: "<STORAGE_CLASS>"
-            volume:
-              dataDirs:
-                - name: data1
-                  type: persistentVolumeClaim
-                  size: "20Gi"
-                  storageClass: "<STORAGE_CLASS>"
-                  maxVolumes: 60
-            filer:
-              data:
-                type: persistentVolumeClaim
-                storageClass: "<STORAGE_CLASS>"
-                size: 5Gi
-          metricstore:
-            persistence:
-              storageClass: "<STORAGE_CLASS>"
-          qdrant:
-            persistence:
-              storageClassName: "<STORAGE_CLASS>"
-        guide_sections: [cluster-domain, storageclass, ingress-tls]
+        guide_sections: [cluster-domain, ingress-tls]
         known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered, tls-clusterissuer-vs-issuer]
 
       - id: issuer
@@ -121,29 +98,7 @@ axes:
               certManager:
                 enabled: true
                 clusterIssuer: ""
-          seaweedfs:
-            master:
-              data:
-                storageClass: "<STORAGE_CLASS>"
-            volume:
-              dataDirs:
-                - name: data1
-                  type: persistentVolumeClaim
-                  size: "20Gi"
-                  storageClass: "<STORAGE_CLASS>"
-                  maxVolumes: 60
-            filer:
-              data:
-                type: persistentVolumeClaim
-                storageClass: "<STORAGE_CLASS>"
-                size: 5Gi
-          metricstore:
-            persistence:
-              storageClass: "<STORAGE_CLASS>"
-          qdrant:
-            persistence:
-              storageClassName: "<STORAGE_CLASS>"
-        guide_sections: [cluster-domain, storageclass, ingress-tls]
+        guide_sections: [cluster-domain, ingress-tls]
         known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered, tls-clusterissuer-vs-issuer]
 
       - id: byoSecret
@@ -163,29 +118,7 @@ axes:
               existingSecret: "<TLS_SECRET>"
               certManager:
                 enabled: false
-          seaweedfs:
-            master:
-              data:
-                storageClass: "<STORAGE_CLASS>"
-            volume:
-              dataDirs:
-                - name: data1
-                  type: persistentVolumeClaim
-                  size: "20Gi"
-                  storageClass: "<STORAGE_CLASS>"
-                  maxVolumes: 60
-            filer:
-              data:
-                type: persistentVolumeClaim
-                storageClass: "<STORAGE_CLASS>"
-                size: 5Gi
-          metricstore:
-            persistence:
-              storageClass: "<STORAGE_CLASS>"
-          qdrant:
-            persistence:
-              storageClassName: "<STORAGE_CLASS>"
-        guide_sections: [cluster-domain, storageclass, ingress-tls]
+        guide_sections: [cluster-domain, ingress-tls]
         known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered]
 
   - id: registry-routing
@@ -268,12 +201,36 @@ axes:
   - id: storage-persistence
     title: Persistence tier
     question: "How should rebuildable components (Mimir, Neo4j, Redis) and SeaweedFS persist their data?"
+    params:
+      - { id: storageClass, prompt: "StorageClass name for durable volumes (e.g. standard-rwo, gp3, managed-csi)" }
     options:
       - id: pvc
         label: "Durable PVCs — all components on PVCs (default; cluster must have an RWO StorageClass)"
         overlay: values-storage.yaml
-        emits: {}
-        guide_sections: [storage-pvc]
+        emits:
+          seaweedfs:
+            master:
+              data:
+                storageClass: "<STORAGE_CLASS>"
+            volume:
+              dataDirs:
+                - name: data1
+                  type: persistentVolumeClaim
+                  size: "20Gi"
+                  storageClass: "<STORAGE_CLASS>"
+                  maxVolumes: 60
+            filer:
+              data:
+                type: persistentVolumeClaim
+                storageClass: "<STORAGE_CLASS>"
+                size: 5Gi
+          metricstore:
+            persistence:
+              storageClass: "<STORAGE_CLASS>"
+          qdrant:
+            persistence:
+              storageClassName: "<STORAGE_CLASS>"
+        guide_sections: [storage-pvc, storageclass]
         known_issues: [postgres-storage-kind]
 
       - id: nfs
@@ -281,9 +238,20 @@ axes:
         overlay: values-storage.yaml
         emits:
           seaweedfs:
+            master:
+              data:
+                storageClass: "<STORAGE_CLASS>"
+            volume:
+              dataDirs:
+                - name: data1
+                  type: persistentVolumeClaim
+                  size: "20Gi"
+                  storageClass: "<STORAGE_CLASS>"
+                  maxVolumes: 60
             filer:
               data:
                 type: persistentVolumeClaim
+                storageClass: "<STORAGE_CLASS>"
                 size: 5Gi
               logs:
                 type: emptyDir

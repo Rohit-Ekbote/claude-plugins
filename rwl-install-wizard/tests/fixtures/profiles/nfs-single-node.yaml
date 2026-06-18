@@ -4,5 +4,6 @@ generatedAt: "2026-06-18"
 answers:
   storage-persistence:
     option: nfs
+    storageClass: nfs-client
   object-storage:
     option: seaweedfs

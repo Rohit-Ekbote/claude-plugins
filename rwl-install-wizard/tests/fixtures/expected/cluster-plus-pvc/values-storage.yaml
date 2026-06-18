@@ -1,0 +1,26 @@
+# storage-persistence: pvc + object-storage: seaweedfs
+objectStorage:
+  kind: seaweedfs
+seaweedfs:
+  deploy: true
+  master:
+    data:
+      storageClass: managed-csi
+  volume:
+    dataDirs:
+      - name: data1
+        type: persistentVolumeClaim
+        size: "20Gi"
+        storageClass: managed-csi
+        maxVolumes: 60
+  filer:
+    data:
+      type: persistentVolumeClaim
+      storageClass: managed-csi
+      size: 5Gi
+metricstore:
+  persistence:
+    storageClass: managed-csi
+qdrant:
+  persistence:
+    storageClassName: managed-csi
