@@ -1,0 +1,14 @@
+schemaVersion: 1
+chartCompat: ">=0.2.30 <0.3"
+generatedAt: "2026-06-18"
+answers:
+  llm-endpoint:
+    option: internal-openai
+    llmBaseUrl: https://llm.internal.example/v1
+    chatModelName: customer-chat
+    chatModel: openai/gpt-4o
+    bgModelName: customer-bg
+    bgModel: openai/gpt-4o-mini
+    embeddingModelName: customer-embedding
+    embeddingModel: openai/text-embedding-3-small
+    llmApiKeySecret: llm-gateway-key

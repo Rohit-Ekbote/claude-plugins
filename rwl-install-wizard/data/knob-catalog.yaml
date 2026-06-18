@@ -469,6 +469,49 @@ axes:
         guide_sections: [internal-ca-trust-bundle]
         known_issues: [mcp-server-ssl-verify-failed]
 
+  - id: llm-endpoint
+    title: LLM endpoint
+    question: "How should the platform reach an LLM for chat, background summarisation, and embedding?"
+    options:
+      - id: default-bootstrap
+        label: "Default — chart deploys the bundled LiteLLM gateway; operator supplies model_list and providersExistingSecret separately"
+        overlay: values-cluster.yaml
+        emits: {}
+        guide_sections: [llm-endpoint]
+        known_issues: [llm-bootstrap-egress]
+
+      - id: internal-openai
+        label: "Internal OpenAI-compatible endpoint — wire a corporate or on-premises model gateway via LiteLLM proxy"
+        overlay: values-cluster.yaml
+        params:
+          - { id: llmBaseUrl, prompt: "LLM endpoint base URL (e.g. https://llm.internal.example/v1 — non-secret)" }
+          - { id: chatModelName, prompt: "LiteLLM model_name for chat (e.g. customer-chat — must be unique per model role)" }
+          - { id: chatModel, prompt: "Upstream model identifier for chat (e.g. openai/gpt-4o or azure/my-gpt4o)" }
+          - { id: bgModelName, prompt: "LiteLLM model_name for background/summarisation (e.g. customer-bg)" }
+          - { id: bgModel, prompt: "Upstream model identifier for background (e.g. openai/gpt-4o-mini)" }
+          - { id: embeddingModelName, prompt: "LiteLLM model_name for embedding (e.g. customer-embedding)" }
+          - { id: embeddingModel, prompt: "Upstream model identifier for embedding (e.g. openai/text-embedding-3-small)" }
+          - { id: llmApiKeySecret, prompt: "Name of the pre-created Kubernetes Secret holding the upstream API key (existingSecret name — not the key value)" }
+        emits:
+          llmGateway:
+            deploy: true
+            providersExistingSecret: "<LLM_API_KEY_SECRET>"
+            models:
+              - model_name: "<CHAT_MODEL_NAME>"
+                litellm_params:
+                  model: "<CHAT_MODEL>"
+                  api_base: "<LLM_BASE_URL>"
+              - model_name: "<BG_MODEL_NAME>"
+                litellm_params:
+                  model: "<BG_MODEL>"
+                  api_base: "<LLM_BASE_URL>"
+              - model_name: "<EMBEDDING_MODEL_NAME>"
+                litellm_params:
+                  model: "<EMBEDDING_MODEL>"
+                  api_base: "<LLM_BASE_URL>"
+        guide_sections: [llm-endpoint]
+        known_issues: [llm-bootstrap-egress, tiktoken-dns-benign, litellm-configmap-placeholder]
+
   - id: subcharts
     title: Datastore deployment mode
     question: "Should datastores (PostgreSQL, Redis, Neo4j, Vault, Qdrant) run as bundled in-cluster subcharts, or should the platform connect to externally-managed services?"
