@@ -75,9 +75,15 @@ if ! bash "$GUARD" "$CATALOG" >/dev/null 2>&1; then
     fail "secret-guard flagged inline secret-shaped content in catalog"
 fi
 
-# 5: every `- id:` block declares at least one of label/title/question.
+# Check 5: every option/axis `- id:` block declares label/title/question.
+# `- id:` lines nested inside an `emits:` block are skipped (emits is arbitrary
+# chart YAML and may legitimately contain `- id:` list items).
 if ! awk '
+  { p=match($0, /[^ ]/); indent=(p?p-1:length($0)) }
+  /^[[:space:]]*emits:/ { in_emits=1; emits_indent=indent; next }
+  in_emits && /[^ ]/ && indent <= emits_indent { in_emits=0 }
   /^[[:space:]]*-[[:space:]]+id:/ {
+      if (in_emits) next
       if (in_blk && !ok) bad++
       in_blk=1; ok=0; next
   }
