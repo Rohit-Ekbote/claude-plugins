@@ -334,6 +334,39 @@ axes:
         guide_sections: [storage-emptydir]
         known_issues: [postgres-storage-kind, mimir-wal-ephemeral, qdrant-no-nfs]
 
+  - id: security-posture
+    title: Pod security hardening
+    question: "How should pods run — chart defaults (already hardened) or an explicit overlay with your own UID/GID and webhook labels?"
+    options:
+      - id: default
+        label: "Default — chart ships hardened by default (non-root uid 1000, read-only rootfs, caps dropped); no overlay needed"
+        emits: {}
+        guide_sections: []
+        known_issues: []
+
+      - id: hardened
+        label: "Explicit hardened overlay — set your own UID/GID and optional webhook labels; satisfies PSS restricted"
+        overlay: values-posture.yaml
+        params:
+          - { id: runAsUid, prompt: "Non-root UID for first-party pods (e.g. 65534; must not be 0 or 500)" }
+          - { id: runAsGid, prompt: "GID for first-party pods (e.g. 65534; keep equal to runAsUid for volume ownership)" }
+        emits:
+          global:
+            podSecurityContext:
+              runAsNonRoot: true
+              runAsUser: "<RUN_AS_UID>"
+              runAsGroup: "<RUN_AS_GID>"
+              fsGroup: "<RUN_AS_GID>"
+              seccompProfile:
+                type: RuntimeDefault
+            containerSecurityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+        guide_sections: [nonroot-uid, readonly-rootfs, webhook-labels-securitycontext]
+        known_issues: [vault-init-home-perms, llm-gateway-nonroot-prisma, mass-run-as-root-failures]
+
   - id: object-storage
     title: Object storage backend
     question: "Which S3 backend should the platform use for workspace uploads, Mimir blocks, and backup storage?"
