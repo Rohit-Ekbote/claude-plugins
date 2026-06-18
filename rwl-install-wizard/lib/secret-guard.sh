@@ -23,7 +23,7 @@ is_allowed_value() {
     case "$v" in
         '""'|"''"|'|'|'>'|'{}'|'[]') return 0 ;;
         '<'*'>'|*CHANGEME*|*REPLACE*|*PLACEHOLDER*|*YOUR_*) return 0 ;;
-        *existingSecret*|*Ref*|*secretKeyRef*|*valueFrom*) return 0 ;;
+        *existingSecret*|*Ref*|*valueFrom*) return 0 ;;
     esac
     return 1
 }
@@ -31,6 +31,7 @@ is_allowed_value() {
 found=0
 report() { printf 'secret-guard: %s:%s: %s\n' "$1" "$2" "$3" >&2; found=1; }
 
+# Note: report() writes only to stderr (>&2), never to $f — SC2094 is a false positive here.
 scan_file() {
     f="$1"; lineno=0
     while IFS= read -r line || [ -n "$line" ]; do

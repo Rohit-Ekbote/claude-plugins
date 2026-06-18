@@ -30,6 +30,20 @@ case "$out" in
   *) printf "  FAIL: %s\n" "names offending file"; FAIL=$((FAIL+1)) ;;
 esac
 
+echo "== secret-guard: compound camelCase key flagged =="
+tmp="$(mktemp "${TMPDIR:-/tmp}/secret-guard-XXXXXX")"
+printf 'auth:\n  postgresPassword: literalpw\n' > "$tmp"
+bash "$GUARD" "$tmp" >/dev/null 2>&1
+assert_rc "$?" "2" "compound key postgresPassword exits 2"
+rm -f "$tmp"
+
+echo "== secret-guard: non-secret key NOT flagged =="
+tmp="$(mktemp "${TMPDIR:-/tmp}/secret-guard-XXXXXX")"
+printf 'model:\n  tokenizer: gpt2\n  image: postgres:16\n' > "$tmp"
+bash "$GUARD" "$tmp" >/dev/null 2>&1
+assert_rc "$?" "0" "non-secret keys (tokenizer/image) exit 0"
+rm -f "$tmp"
+
 echo ""
 echo "secret-guard: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

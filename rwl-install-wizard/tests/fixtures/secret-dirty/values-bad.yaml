@@ -14,3 +14,5 @@ postgresql2:
   auth:
     postgresPassword: literalpostgrespw
     replicationPassword: literalreplpw
+github:
+  patToken: ghp_abcdefghijklmnopqrstuvwxyz0123456789
