@@ -1,0 +1,31 @@
+# storage-persistence: nfs + object-storage: seaweedfs
+objectStorage:
+  kind: seaweedfs
+seaweedfs:
+  deploy: true
+  filer:
+    data:
+      type: persistentVolumeClaim
+      size: 5Gi
+    logs:
+      type: emptyDir
+  s3:
+    logs:
+      type: emptyDir
+redis:
+  master:
+    persistence:
+      enabled: false
+neo4j:
+  volumes:
+    data:
+      mode: volume
+      volume:
+        emptyDir:
+          sizeLimit: 5Gi
+metricstore:
+  persistence:
+    kind: emptyDir
+    size: 10Gi
+qdrant:
+  useSubchart: false

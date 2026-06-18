@@ -260,3 +260,111 @@ axes:
               registry: "<REGISTRY_HOST>/docker-dockerhub"
         guide_sections: [registry-jfrog-per-upstream, subchart-alias-mirroring]
         known_issues: [hardcoded-image-refs, embedder-airgap-hang, thin-chart-subchart-aliases, seaweedfs-image-chrislusf]
+
+  - id: storage-persistence
+    title: Persistence tier
+    question: "How should rebuildable components (Mimir, Neo4j, Redis) and SeaweedFS persist their data?"
+    options:
+      - id: pvc
+        label: "Durable PVCs — all components on PVCs (default; cluster must have an RWO StorageClass)"
+        overlay: values-storage.yaml
+        emits: {}
+        guide_sections: [storage-pvc]
+        known_issues: [postgres-storage-kind]
+
+      - id: nfs
+        label: "NFS posture — SeaweedFS data on NFS PVCs; rebuildables (Mimir, Redis, Neo4j) on emptyDir; Qdrant on emptyDir (NFS not supported by vendor)"
+        overlay: values-storage.yaml
+        emits:
+          seaweedfs:
+            filer:
+              data:
+                type: persistentVolumeClaim
+                size: 5Gi
+              logs:
+                type: emptyDir
+            s3:
+              logs:
+                type: emptyDir
+          redis:
+            master:
+              persistence:
+                enabled: false
+          neo4j:
+            volumes:
+              data:
+                mode: volume
+                volume:
+                  emptyDir:
+                    sizeLimit: 5Gi
+          metricstore:
+            persistence:
+              kind: emptyDir
+              size: 10Gi
+          qdrant:
+            useSubchart: false
+        guide_sections: [storage-nfs]
+        known_issues: [postgres-storage-kind, mimir-wal-ephemeral, qdrant-no-nfs]
+
+      - id: emptyDir
+        label: "emptyDir (lab/ephemeral) — rebuildables on emptyDir; no RWO StorageClass required"
+        overlay: values-storage.yaml
+        emits:
+          metricstore:
+            persistence:
+              kind: emptyDir
+              size: 10Gi
+          redis:
+            master:
+              persistence:
+                enabled: false
+          neo4j:
+            volumes:
+              data:
+                mode: volume
+                volume:
+                  emptyDir:
+                    sizeLimit: 5Gi
+          postgresql:
+            spilo:
+              persistence:
+                kind: emptyDir
+          qdrant:
+            useSubchart: false
+        guide_sections: [storage-emptydir]
+        known_issues: [postgres-storage-kind, mimir-wal-ephemeral, qdrant-no-nfs]
+
+  - id: object-storage
+    title: Object storage backend
+    question: "Which S3 backend should the platform use for workspace uploads, Mimir blocks, and backup storage?"
+    options:
+      - id: seaweedfs
+        label: "Bundled SeaweedFS — Apache 2.0, namespace-scoped, no CRDs (default)"
+        overlay: values-storage.yaml
+        emits:
+          objectStorage:
+            kind: seaweedfs
+          seaweedfs:
+            deploy: true
+        guide_sections: [object-storage-seaweedfs]
+        known_issues: [seaweedfs-s3-access-denied]
+
+      - id: external-s3
+        label: "External S3 — AWS S3, GCS S3-interop, Backblaze, or any S3-compatible endpoint"
+        overlay: values-storage.yaml
+        params:
+          - { id: s3Endpoint, prompt: "S3 endpoint URL (e.g. https://s3.amazonaws.com or http://internal-s3:9000)" }
+          - { id: s3Bucket, prompt: "Shared workspace bucket name (e.g. shared-workspace)" }
+          - { id: s3ExistingSecret, prompt: "Name of the pre-created Kubernetes Secret holding S3 credentials (existingSecret)" }
+        emits:
+          objectStorage:
+            kind: external
+            external:
+              host: "<S3_ENDPOINT>"
+              internalHost: "<S3_ENDPOINT>"
+              bucket: "<S3_BUCKET>"
+            existingSecret: "<S3_EXISTING_SECRET>"
+          seaweedfs:
+            deploy: false
+        guide_sections: [object-storage-external-s3]
+        known_issues: []
