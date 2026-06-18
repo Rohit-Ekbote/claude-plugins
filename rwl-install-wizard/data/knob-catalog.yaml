@@ -468,3 +468,57 @@ axes:
               setEnvVars: true
         guide_sections: [internal-ca-trust-bundle]
         known_issues: [mcp-server-ssl-verify-failed]
+
+  - id: subcharts
+    title: Datastore deployment mode
+    question: "Should datastores (PostgreSQL, Redis, Neo4j, Vault, Qdrant) run as bundled in-cluster subcharts, or should the platform connect to externally-managed services?"
+    options:
+      - id: bundled-all
+        label: "Bundled — deploy all five datastores as in-cluster subcharts (default)"
+        emits: {}
+        guide_sections: [subchart-bundled]
+        known_issues: [postgres-bundled-single-pod, vault-order-of-operations, neo4j-workload-name]
+
+      - id: byo-datastores
+        label: "BYO external — connect to externally-managed datastores (disable bundled subcharts)"
+        overlay: values-cluster.yaml
+        params:
+          - { id: pgHost, prompt: "PostgreSQL external host (e.g. pg.example.com or Cloud SQL private IP)" }
+          - { id: pgPort, prompt: "PostgreSQL port (default 5432)" }
+          - { id: pgDatabase, prompt: "PostgreSQL database name (default core)" }
+          - { id: pgUsername, prompt: "PostgreSQL username (e.g. runwhen)" }
+          - { id: redisHost, prompt: "Redis external host (e.g. redis.example.com or managed Redis endpoint)" }
+          - { id: redisPort, prompt: "Redis port (default 6379)" }
+          - { id: neo4jUri, prompt: "Neo4j Bolt URI (e.g. bolt://neo4j.example.com:7687 — NOT NFS-backed)" }
+          - { id: neo4jUsername, prompt: "Neo4j username (e.g. neo4j)" }
+          - { id: vaultAddress, prompt: "Vault HTTPS address (e.g. https://vault.example.com — must have runner-system KV mount + k8s auth pre-configured)" }
+          - { id: qdrantUrl, prompt: "Qdrant HTTP URL (e.g. http://qdrant.example.com:6333)" }
+        emits:
+          postgresql:
+            kind: external
+            deploy: false
+            external:
+              host: "<PG_HOST>"
+              port: "<PG_PORT>"
+              database: "<PG_DATABASE>"
+              username: "<PG_USERNAME>"
+          redis:
+            deploy: false
+            external:
+              host: "<REDIS_HOST>"
+              port: "<REDIS_PORT>"
+          neo4j:
+            deploy: false
+            external:
+              uri: "<NEO4J_URI>"
+              username: "<NEO4J_USERNAME>"
+          vault:
+            deploy: false
+            address: "<VAULT_ADDRESS>"
+          qdrant:
+            deploy: false
+            useSubchart: false
+            external:
+              url: "<QDRANT_URL>"
+        guide_sections: [subchart-byo-external]
+        known_issues: []
