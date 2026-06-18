@@ -22,5 +22,5 @@ tailored user guide + debug guide for your exact install shape.
 - `rwl-install-out/values-*.yaml` — layered overlays.
 - `rwl-install-out/USER-GUIDE.md`, `rwl-install-out/DEBUG-GUIDE.md`.
 
-Targets chart versions `>=0.2.30 <0.3`. See
+Targets chart versions `>=0.2.37 <0.3`. See
 `docs/superpowers/specs/2026-06-17-rwl-install-wizard-design.md` for design.

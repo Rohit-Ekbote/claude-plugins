@@ -3,7 +3,11 @@
 # MAINTENANCE CONTRACT: a new chart knob or a newly logged friction is an edit
 # to THIS file (and a data/ file), never a change to the skills.
 #
-# chartCompat: ">=0.2.30 <0.3"
+# chartCompat: ">=0.2.37 <0.3"
+#   Floor is 0.2.37: the catalog assumes the chart auto-derives CORS/CSRF/login
+#   hosts from global.domain (browserOrigins.autoDerive, default in 0.2.37+), so
+#   cluster-shape does not emit those keys. Raise the floor if a future axis
+#   relies on a newer chart feature.
 #
 # AUTHORING RULES (enforced by lib/catalog-lint.sh):
 #   - guide_sections / known_issues MUST be single-line inline arrays:
@@ -23,7 +27,7 @@
 #         ingress: { host: "papi.<DOMAIN>" }
 #   Placeholders are <UPPER_SNAKE> of the param id. Never use a param for a
 #   secret — params are shape facts only.
-chartCompat: ">=0.2.30 <0.3"
+chartCompat: ">=0.2.37 <0.3"
 axes:
   - id: networking
     title: Pod network CIDR
