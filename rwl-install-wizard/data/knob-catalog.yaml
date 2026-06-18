@@ -401,3 +401,44 @@ axes:
             deploy: false
         guide_sections: [object-storage-external-s3]
         known_issues: []
+
+  - id: rbac-identity
+    title: RBAC and identity posture
+    question: "Who creates ServiceAccounts and ClusterRoleBindings — the chart, or your RBAC pipeline?"
+    options:
+      - id: chart-managed
+        label: "Chart-managed — chart creates ServiceAccounts and RoleBindings normally (default)"
+        emits: {}
+        guide_sections: []
+        known_issues: []
+
+      - id: byo
+        label: "BYO — enterprise RBAC pipeline pre-provisions SAs; chart must not create them or any ClusterRoleBindings"
+        overlay: values-posture.yaml
+        params:
+          - { id: platformSaName, prompt: "Pre-provisioned ServiceAccount name for platform backend pods (e.g. rw-platform)" }
+          - { id: vaultBackupSaName, prompt: "Pre-provisioned ServiceAccount name for vault-backup CronJob (e.g. rw-vault-backup)" }
+          - { id: postgresqlSaName, prompt: "Pre-provisioned ServiceAccount name for Spilo/postgresql (e.g. rw-postgresql)" }
+        emits:
+          serviceAccount:
+            platform:
+              create: false
+              name: "<PLATFORM_SA_NAME>"
+            vaultBackup:
+              create: false
+              name: "<VAULT_BACKUP_SA_NAME>"
+            postgresql:
+              create: false
+              name: "<POSTGRESQL_SA_NAME>"
+          vault:
+            injector:
+              enabled: false
+            server:
+              authDelegator:
+                enabled: false
+          global:
+            imagePullSecrets: []
+          images:
+            pullSecrets: []
+        guide_sections: [byo-serviceaccounts, no-clusterrolebindings, vault-injector-authdelegator, no-imagepullsecrets]
+        known_issues: [vault-clusterrolebinding-blocked, sa-rolebinding-reserved]

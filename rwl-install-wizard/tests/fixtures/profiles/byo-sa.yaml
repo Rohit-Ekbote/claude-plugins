@@ -1,0 +1,9 @@
+schemaVersion: 1
+chartCompat: ">=0.2.30 <0.3"
+generatedAt: "2026-06-18"
+answers:
+  rbac-identity:
+    option: byo
+    platformSaName: rw-platform
+    vaultBackupSaName: rw-vault-backup
+    postgresqlSaName: rw-postgresql
