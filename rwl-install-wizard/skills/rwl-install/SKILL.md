@@ -1,0 +1,83 @@
+---
+name: rwl-install
+description: Interview the operator about their cluster and generate a tailored RunWhen-platform install kit (layered values overlays + user guide + debug guide). Generate-only; never touches a cluster; never asks for or stores secrets.
+triggers:
+  - /rwl-install
+  - install runwhen platform
+  - generate runwhen values
+  - runwhen install wizard
+---
+
+# RunWhen platform install wizard
+
+Generate-only. **Never** run `helm`, `kubectl`, or any cluster command. **Never**
+ask for, echo, or store a secret (password, token, key, PAT, kubeconfig, cert
+material). Secrets are wired by name (`existingSecret`/`*Ref`) only.
+
+## Inputs
+- Catalog: `${CLAUDE_PLUGIN_ROOT}/data/knob-catalog.yaml`
+- Guide sections: `${CLAUDE_PLUGIN_ROOT}/data/guide-sections/`
+- Known issues: `${CLAUDE_PLUGIN_ROOT}/data/known-issues/`
+- Guard: `${CLAUDE_PLUGIN_ROOT}/lib/secret-guard.sh`
+
+## State + output (in `$PWD`)
+- Profile: `.claude/rwl-install-profile.yaml` (the ONLY state; secret-free)
+- Kit: `rwl-install-out/{values-*.yaml, USER-GUIDE.md, DEBUG-GUIDE.md}`
+
+## Flow
+
+1. **Chart-version gate.** State the targeted range (`chartCompat` from the
+   catalog). Ask the operator which chart version they have. If out of range,
+   warn and continue, and stamp generated files "unverified for chart <X>".
+
+2. **Load or start profile.**
+   - If `.claude/rwl-install-profile.yaml` exists: summarize saved answers and
+     ask whether to (a) review all, (b) change a specific axis, or (c)
+     regenerate as-is. Preload answers accordingly.
+   - Else: start a fresh interview.
+
+3. **Interview** — walk axes from the catalog **one question at a time** using
+   the AskUserQuestion tool. For each axis:
+   - Present the `question` and its `options` (label each from the catalog).
+   - Skip an axis whose `dependsOn` precondition is unmet, or auto-resolve it
+     when an earlier answer moots it (note the auto-resolution to the operator).
+   - If a chosen option triggers a `conflictsWith` pair already selected,
+     surface the conflict and ask the operator to resolve before continuing.
+   - **Only collect non-sensitive shape facts** (domain, StorageClass,
+     ingressClass, UID/GID, registry hostname/path, endpoint URLs, CA-bundle
+     source reference). If a value would be a secret, do NOT collect it — instead
+     record that a named secret is required and surface it in the guide.
+
+4. **Write the profile** to `.claude/rwl-install-profile.yaml` (schemaVersion: 1,
+   chartCompat, generatedAt = today, answers map). Save even a partial profile
+   if the operator stops early.
+
+5. **GENERATE** (always fully rewrite `rwl-install-out/`):
+   1. For each answered option, take its `emits:` fragment and target `overlay:`.
+      Deep-merge fragments per overlay file. Write only overlays that received
+      content. Prepend each overlay with a header: chartCompat, generatedAt,
+      and the axis answers that produced it.
+   2. Collect the de-duplicated union of `guide_sections` ids → assemble
+      `USER-GUIDE.md` in INSTALL-CHECKLIST Phase 0→10 order, with command blocks
+      that name the generated overlays in `-f` flags and substitute the
+      operator's domain/namespace. Secret creation appears only as
+      `kubectl create secret ... <PLACEHOLDER>` templates.
+   3. Collect the de-duplicated union of `known_issues` ids → assemble
+      `DEBUG-GUIDE.md` from the matching `data/known-issues/<id>.md` files.
+   4. Both guides end with a short "verify it's running / when you're stuck"
+      pointer (checklist Phases 6/8); note that live-cluster debugging is out of
+      scope for this wizard.
+
+6. **Secret-guard gate.** Run
+   `bash ${CLAUDE_PLUGIN_ROOT}/lib/secret-guard.sh .claude/rwl-install-profile.yaml rwl-install-out`.
+   If it exits non-zero, DELETE the offending generated content, tell the
+   operator exactly which file/line tripped it, and stop — do not present a kit
+   that contains secret-shaped content.
+
+7. **Summary.** Print which overlays + guides were written and the first command
+   from the user guide. Suggest `/rwl-install-show` to review.
+
+## Hard rules
+- Generate-only. No cluster calls. No `helm`/`kubectl` execution.
+- Secret-free. No secret is ever requested, echoed, or written.
+- Output is a pure function of (profile + catalog): always regenerate wholesale.
