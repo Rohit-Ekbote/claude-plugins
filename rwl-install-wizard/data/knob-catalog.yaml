@@ -442,3 +442,29 @@ axes:
             pullSecrets: []
         guide_sections: [byo-serviceaccounts, no-clusterrolebindings, vault-injector-authdelegator, no-imagepullsecrets]
         known_issues: [vault-clusterrolebinding-blocked, sa-rolebinding-reserved]
+
+  - id: internal-ca
+    title: Internal / corporate CA trust
+    question: "Do platform pods need to trust a private/corporate CA for in-cluster HTTPS (ingress TLS, internal git, webhooks)?"
+    options:
+      - id: public-ca
+        label: "No — platform trusts public CAs only (default)"
+        emits: {}
+        guide_sections: []
+        known_issues: []
+
+      - id: internal-ca
+        label: "Yes — inject a private/corporate CA trust bundle via a pre-created Secret"
+        overlay: values-cluster.yaml
+        params:
+          - { id: caBundleSecret, prompt: "Name of the pre-created Kubernetes Secret holding the CA bundle (e.g. corp-ca-bundle)" }
+          - { id: bundleFile, prompt: "Filename key inside the Secret (e.g. ca-bundle.crt — must match --from-file=<key> used when creating the Secret)" }
+        emits:
+          global:
+            trustBundle:
+              enabled: true
+              existingSecret: "<CA_BUNDLE_SECRET>"
+              bundleFile: "<BUNDLE_FILE>"
+              setEnvVars: true
+        guide_sections: [internal-ca-trust-bundle]
+        known_issues: [mcp-server-ssl-verify-failed]
