@@ -183,3 +183,80 @@ axes:
               storageClassName: "<STORAGE_CLASS>"
         guide_sections: [cluster-domain, storageclass, ingress-tls]
         known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered]
+
+  - id: registry-routing
+    title: Container registry routing
+    question: "How do cluster nodes pull container images — direct from public upstreams, or via a customer-side mirror?"
+    options:
+      - id: connected
+        label: "Connected — pull direct from public upstreams (no mirror)"
+        emits: {}
+        guide_sections: [registry-connected]
+        known_issues: []
+
+      - id: flat-mirror
+        label: "Flat mirror — single mirror host fronts all upstreams (Harbor project, ECR pull-through, Distribution mirror)"
+        overlay: values-registry.yaml
+        params:
+          - { id: registryHost, prompt: "Mirror registry host + path prefix (e.g. harbor.corp.example/runwhen or jcr.example.com/runwhen)" }
+          - { id: pullSecretName, prompt: "Name of the pre-created Kubernetes image pull Secret (e.g. harbor-pull-secret)" }
+        emits:
+          registryOverride: "<REGISTRY_HOST>"
+          images:
+            pullSecrets:
+              - name: "<PULL_SECRET_NAME>"
+          global:
+            imagePullSecrets:
+              - name: "<PULL_SECRET_NAME>"
+        guide_sections: [registry-flat-mirror, subchart-alias-mirroring]
+        known_issues: [hardcoded-image-refs, thin-chart-subchart-aliases]
+
+      - id: jfrog-per-upstream
+        label: "JFrog per-upstream — one virtual repo per upstream registry (Artifactory / JCR)"
+        overlay: values-registry.yaml
+        params:
+          - { id: registryHost, prompt: "JFrog / JCR hostname (e.g. jcr.example.com or artifactory.corp.example)" }
+          - { id: pullSecretName, prompt: "Name of the pre-created Kubernetes image pull Secret (e.g. jcr-pull-secret)" }
+        emits:
+          global:
+            imagePullSecrets:
+              - name: "<PULL_SECRET_NAME>"
+            utility:
+              busybox:
+                registry: "<REGISTRY_HOST>/docker-dockerhub"
+              dbInit:
+                registry: "<REGISTRY_HOST>/docker-dockerhub"
+              vaultClient:
+                registry: "<REGISTRY_HOST>/docker-dockerhub"
+          images:
+            pullSecrets:
+              - name: "<PULL_SECRET_NAME>"
+            registry: "<REGISTRY_HOST>/docker-runwhen-self-hosted/runwhen-self-hosted/platform-images"
+            mcpServer:
+              registry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib"
+            ccCatalog:
+              registry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib"
+            llmGateway:
+              registry: "<REGISTRY_HOST>/docker-ghcr/berriai"
+          runnerMetricProxy:
+            image:
+              registry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib"
+          postgresql:
+            spilo:
+              image:
+                registry: "<REGISTRY_HOST>/docker-ghcr/zalando"
+            pgbouncer:
+              image:
+                registry: "<REGISTRY_HOST>/docker-dockerhub"
+          vault:
+            autoUnseal:
+              image:
+                registry: "<REGISTRY_HOST>/docker-dockerhub"
+            backup:
+              image:
+                registry: "<REGISTRY_HOST>/docker-dockerhub"
+          metricstore:
+            image:
+              registry: "<REGISTRY_HOST>/docker-dockerhub"
+        guide_sections: [registry-jfrog-per-upstream, subchart-alias-mirroring]
+        known_issues: [hardcoded-image-refs, embedder-airgap-hang, thin-chart-subchart-aliases, seaweedfs-image-chrislusf]

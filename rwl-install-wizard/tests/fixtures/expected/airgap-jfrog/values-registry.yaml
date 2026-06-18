@@ -1,0 +1,40 @@
+global:
+  imagePullSecrets:
+    - name: jcr-pull-secret
+  utility:
+    busybox:
+      registry: jcr.example.com/docker-dockerhub
+    dbInit:
+      registry: jcr.example.com/docker-dockerhub
+    vaultClient:
+      registry: jcr.example.com/docker-dockerhub
+images:
+  pullSecrets:
+    - name: jcr-pull-secret
+  registry: jcr.example.com/docker-runwhen-self-hosted/runwhen-self-hosted/platform-images
+  mcpServer:
+    registry: jcr.example.com/docker-ghcr/runwhen-contrib
+  ccCatalog:
+    registry: jcr.example.com/docker-ghcr/runwhen-contrib
+  llmGateway:
+    registry: jcr.example.com/docker-ghcr/berriai
+runnerMetricProxy:
+  image:
+    registry: jcr.example.com/docker-ghcr/runwhen-contrib
+postgresql:
+  spilo:
+    image:
+      registry: jcr.example.com/docker-ghcr/zalando
+  pgbouncer:
+    image:
+      registry: jcr.example.com/docker-dockerhub
+vault:
+  autoUnseal:
+    image:
+      registry: jcr.example.com/docker-dockerhub
+  backup:
+    image:
+      registry: jcr.example.com/docker-dockerhub
+metricstore:
+  image:
+    registry: jcr.example.com/docker-dockerhub
