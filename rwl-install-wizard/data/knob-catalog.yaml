@@ -1,0 +1,35 @@
+# knob-catalog.yaml — SOURCE OF TRUTH for rwl-install-wizard.
+#
+# MAINTENANCE CONTRACT: a new chart knob or a newly logged friction is an edit
+# to THIS file (and a data/ file), never a change to the skills.
+#
+# chartCompat: ">=0.2.30 <0.3"
+#
+# AUTHORING RULES (enforced by lib/catalog-lint.sh):
+#   - guide_sections / known_issues MUST be single-line inline arrays
+#     (e.g. a list of ids like [foo, bar]), never multi-line block lists.
+#   - emits: MUST NOT contain an inline secret literal. Wire secrets by name
+#     (existingSecret / *Ref) only.
+#   - Every option block (- id:) carries a label:. Axes carry title: + question:.
+chartCompat: ">=0.2.30 <0.3"
+axes:
+  - id: networking
+    title: Pod network CIDR
+    question: "Is your cluster's pod network in standard private (RFC1918) ranges?"
+    options:
+      - id: rfc1918
+        label: "Yes — 10.x / 172.16–31.x / 192.168.x (default)"
+        emits: {}
+        guide_sections: []
+        known_issues: []
+      - id: non-rfc1918
+        label: "No — non-RFC1918 space (e.g. carrier/DoD 21.121.x)"
+        overlay: values-cluster.yaml
+        emits:
+          metricstore:
+            config:
+              memberlist:
+                bind_addr: ["127.0.0.1"]
+                advertise_addr: "127.0.0.1"
+        guide_sections: [networking-non-rfc1918]
+        known_issues: [mimir-memberlist-no-private-ip]
