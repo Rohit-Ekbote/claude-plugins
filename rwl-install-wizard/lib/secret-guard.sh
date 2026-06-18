@@ -41,7 +41,7 @@ scan_file() {
         fi
         key="$(printf '%s' "$line" | sed -n 's/^[[:space:]]*\([A-Za-z0-9_-]*\)[[:space:]]*:.*$/\1/p')"
         [ -z "$key" ] && continue
-        if printf '%s' "$key" | grep -Eiq "^$SECRET_KEY_RE$"; then
+        if printf '%s' "$key" | grep -Eiq "$SECRET_KEY_RE\$"; then
             val="$(printf '%s' "$line" | sed -n 's/^[[:space:]]*[A-Za-z0-9_-]*[[:space:]]*:\(.*\)$/\1/p')"
             if ! is_allowed_value "$val"; then
                 report "$f" "$lineno" "inline value for secret-ish key '$key'"

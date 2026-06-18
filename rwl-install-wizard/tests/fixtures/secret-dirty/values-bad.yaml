@@ -10,3 +10,7 @@ tls:
     -----BEGIN PRIVATE KEY-----
     MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSk
     -----END PRIVATE KEY-----
+postgresql2:
+  auth:
+    postgresPassword: literalpostgrespw
+    replicationPassword: literalreplpw
