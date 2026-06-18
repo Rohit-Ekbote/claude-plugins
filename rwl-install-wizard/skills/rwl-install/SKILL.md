@@ -10,9 +10,11 @@ triggers:
 
 # RunWhen platform install wizard
 
-Generate-only. **Never** run `helm`, `kubectl`, or any cluster command. **Never**
-ask for, echo, or store a secret (password, token, key, PAT, kubeconfig, cert
-material). Secrets are wired by name (`existingSecret`/`*Ref`) only.
+Generate-only. **Never** run `helm install`/`helm upgrade`, `kubectl`, or any
+command that contacts a cluster (the only permitted `helm` use is the optional
+client-side `helm template` sanity check in GENERATE step 5). **Never** ask for,
+echo, or store a secret (password, token, key, PAT, kubeconfig, cert material).
+Secrets are wired by name (`existingSecret`/`*Ref`) only.
 
 ## Inputs
 - Catalog: `${CLAUDE_PLUGIN_ROOT}/data/knob-catalog.yaml`
@@ -67,6 +69,13 @@ material). Secrets are wired by name (`existingSecret`/`*Ref`) only.
    4. Both guides end with a short "verify it's running / when you're stuck"
       pointer (checklist Phases 6/8); note that live-cluster debugging is out of
       scope for this wizard.
+   5. **Offline sanity check.** Confirm each generated `values-*.yaml` parses as
+      YAML. If a local chart is present (a `Chart.yaml` or chart `.tgz` in `$PWD`,
+      or a path the operator names), optionally run
+      `helm template <release> <chart> -f <each overlay>` and report parse
+      errors. If no chart is present, skip silently (the typical no-repo case).
+      Report the result in the summary. This is the only place `helm` may be
+      invoked, and only in `template` (client-side, no cluster) mode.
 
 6. **Secret-guard gate.** Run
    `bash ${CLAUDE_PLUGIN_ROOT}/lib/secret-guard.sh .claude/rwl-install-profile.yaml rwl-install-out`.
@@ -78,6 +87,9 @@ material). Secrets are wired by name (`existingSecret`/`*Ref`) only.
    from the user guide. Suggest `/rwl-install-show` to review.
 
 ## Hard rules
-- Generate-only. No cluster calls. No `helm`/`kubectl` execution.
+- Generate-only. No cluster contact: never run `helm install`/`helm upgrade`,
+  `kubectl`, or anything that reaches a cluster. The sole exception is the
+  optional `helm template` sanity check in GENERATE step 5 — client-side
+  rendering only, never against a cluster.
 - Secret-free. No secret is ever requested, echoed, or written.
 - Output is a pure function of (profile + catalog): always regenerate wholesale.
