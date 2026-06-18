@@ -1,0 +1,15 @@
+{
+  "name": "rwl-install-wizard",
+  "description": "Guided installer for the RunWhen platform Helm chart: interviews the operator and generates layered values overlays plus tailored user and debug guides. Generate-only, self-contained, never handles secrets.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Rohit Ekbote"
+  },
+  "homepage": "https://github.com/Rohit-Ekbote/claude-plugins",
+  "repository": "https://github.com/Rohit-Ekbote/claude-plugins",
+  "license": "MIT",
+  "keywords": ["helm", "runwhen", "install", "wizard", "values", "kubernetes", "generate-only"],
+  "metadata": {
+    "chartCompat": ">=0.2.30 <0.3"
+  }
+}
