@@ -65,6 +65,14 @@ assert_no_grep "~/.claude/commands" "$CMD/update-requirements.md" "no home-path 
 assert_grep "_date-parsing.md" "$CMD/update-requirements.md" "requirements references date-parsing include"
 assert_grep "requirements.md" "$CMD/update-requirements.md" "requirements writes requirements.md"
 
+echo "== Task 9: qna command + engine =="
+assert_file "$CMD/_qna-engine.md" "_qna-engine.md exists"
+assert_file "$CMD/qna.md" "qna.md exists"
+assert_no_grep "~/.claude/commands" "$CMD/qna.md" "no home-path refs in qna"
+assert_grep "changelog.md" "$CMD/_qna-engine.md" "qna-engine defines changelog audit trail"
+assert_grep "append-only" "$CMD/_qna-engine.md" "qna-engine marks changelog append-only"
+assert_grep "read-only" "$CMD/_qna-engine.md" "qna-engine keeps raw inputs read-only"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""
