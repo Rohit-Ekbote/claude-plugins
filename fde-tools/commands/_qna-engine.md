@@ -26,7 +26,7 @@ The user states that something recorded is wrong and gives the corrected truth (
 
 - Infer the correction fields: `topic` (short semantic slug), `Correction` (what is actually true), `Corrects` (the mistaken claim and where it appeared), `Date` (today, `YYYY-MM-DD`).
 - If any field is too ambiguous to infer confidently, ask ONE brief clarifying question before writing.
-- Append a Correction block to the TOP of `corrections.md` (immediately under the title line if present; create the file with title `# Corrections` if absent), using the format from `${CLAUDE_PLUGIN_ROOT}/commands/_engagement-context.md`:
+- Prepend a Correction block (insert it at the top of) `corrections.md` (immediately under the title line if present; create the file with title `# Corrections` if absent), using the format from `${CLAUDE_PLUGIN_ROOT}/commands/_engagement-context.md`:
 
   ```
   ### Correction: <short-topic>
@@ -49,7 +49,7 @@ The user requests a specific surgical change to existing generated data, or to a
 
 ## changelog.md (append-only audit trail)
 
-`changelog.md` is written ONLY by `/qna`, ONLY for Intent 3 mutations, and is **append-only** — never rewrite or delete earlier entries. Append each new block to the TOP of the file (newest first), immediately under the title line if present. Create the file with title `# Changelog` if absent.
+`changelog.md` is written ONLY by `/qna`, ONLY for Intent 3 mutations, and is **append-only** — never rewrite or delete earlier entries. Prepend each new block (insert it at the top of the file, newest first), immediately under the title line if present. Create the file with title `# Changelog` if absent.
 
 Block format:
 
