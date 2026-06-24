@@ -73,6 +73,12 @@ assert_grep "changelog.md" "$CMD/_qna-engine.md" "qna-engine defines changelog a
 assert_grep "append-only" "$CMD/_qna-engine.md" "qna-engine marks changelog append-only"
 assert_grep "read-only" "$CMD/_qna-engine.md" "qna-engine keeps raw inputs read-only"
 
+echo "== Task 10: fixtures =="
+FX="$PLUGIN_DIR/tests/fixtures/sample-engagement"
+assert_file "$FX/granola/2026-03-12-kickoff.md" "kickoff fixture exists"
+assert_file "$FX/slack/eng-channel.txt" "slack fixture exists"
+assert_file "$FX/raw/field-notes.txt" "raw fixture exists"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""

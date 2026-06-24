@@ -1,0 +1,3 @@
+[2026-03-19 09:14] priya: Postgres needs block storage — NFS won't work for our write patterns.
+[2026-03-19 09:20] dan: noted, that conflicts with the NFS-only constraint from kickoff. will dig in.
+[2026-03-25 16:02] priya: new ask — can the guide be available fully offline for our air-gapped site?
