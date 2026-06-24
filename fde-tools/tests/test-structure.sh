@@ -79,6 +79,12 @@ assert_file "$FX/granola/2026-03-12-kickoff.md" "kickoff fixture exists"
 assert_file "$FX/slack/eng-channel.txt" "slack fixture exists"
 assert_file "$FX/raw/field-notes.txt" "raw fixture exists"
 
+echo "== Task 11: registration + docs =="
+assert_file "$PLUGIN_DIR/README.md" "plugin README exists"
+assert_file "$PLUGIN_DIR/RETIRE-GLOBALS.md" "retirement doc exists"
+ROOT="$(dirname "$PLUGIN_DIR")"
+assert_grep "\"name\": *\"fde-tools\"" "$ROOT/.claude-plugin/marketplace.json" "fde-tools registered in marketplace"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""
