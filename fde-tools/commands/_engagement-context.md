@@ -20,7 +20,7 @@ The combined contents of all files read constitute **the engagement context** fo
 
 `corrections.md` is the single dated overlay journal in the working directory. Read it before processing the engagement context.
 
-**Resolution rule** (latest-wins-by-topic): for any topic, the most recent dated statement wins as current truth, across notes and corrections. On a date tie, a `corrections.md` entry wins over a raw note. A correction is never deleted.
+**Resolution rule** (latest-wins-by-topic): for any topic, the most recent dated statement wins as current truth, across notes and corrections. On a date tie, a `corrections.md` entry wins over a raw note. A correction is durable by default and is never silently lost; it may be amended or deleted only through `/qna`, which records the change in `changelog.md`.
 
 Topics are short human-readable slugs matched **semantically**, not a strict enum — e.g. `setup-status`, `storage-backend`, `ingress-plan`.
 

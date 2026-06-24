@@ -36,7 +36,7 @@ The user states that something recorded is wrong and gives the corrected truth (
   **Corrects:** <the mistaken claim / where it appeared>
   ```
 
-- This is append-only to `corrections.md` and does NOT require a `changelog.md` entry.
+- This writes only to `corrections.md` (a new prepended block) and does NOT require a `changelog.md` entry.
 - Then offer regeneration (see "Offer to regenerate" below).
 
 ### Intent 3 — Direct edit / delete (writes the target + changelog.md)
