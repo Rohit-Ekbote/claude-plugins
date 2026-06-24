@@ -53,6 +53,12 @@ assert_file "$CMD/summarize-engagement.md" "summarize-engagement.md exists"
 assert_no_grep "~/.claude/commands" "$CMD/summarize-engagement.md" "no home-path refs in summarize"
 assert_grep "How we solve each requirement" "$CMD/summarize-engagement.md" "summary keeps fixed sections"
 
+echo "== Task 7: update-progress command =="
+assert_file "$CMD/update-progress.md" "update-progress.md exists"
+assert_no_grep "~/.claude/commands" "$CMD/update-progress.md" "no home-path refs in update-progress"
+assert_grep "_date-parsing.md" "$CMD/update-progress.md" "update-progress references date-parsing include"
+assert_grep "New blockers" "$CMD/update-progress.md" "update-progress keeps section structure"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""
