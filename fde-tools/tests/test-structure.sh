@@ -48,6 +48,11 @@ assert_file "$CMD/build-guide.md" "build-guide.md exists"
 assert_no_grep "~/.claude/commands" "$CMD/build-guide.md" "no home-path refs in build-guide"
 assert_grep "CLAUDE_PLUGIN_ROOT" "$CMD/build-guide.md" "build-guide uses plugin-root refs"
 
+echo "== Task 6: summarize-engagement command =="
+assert_file "$CMD/summarize-engagement.md" "summarize-engagement.md exists"
+assert_no_grep "~/.claude/commands" "$CMD/summarize-engagement.md" "no home-path refs in summarize"
+assert_grep "How we solve each requirement" "$CMD/summarize-engagement.md" "summary keeps fixed sections"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""
