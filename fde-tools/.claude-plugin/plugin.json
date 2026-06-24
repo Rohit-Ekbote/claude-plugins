@@ -1,0 +1,12 @@
+{
+  "name": "fde-tools",
+  "description": "Forward Deployed Engineer engagement toolkit: builds an offline field guide, summary, dated progress timeline, and dated requirements log from read-only engagement notes, with an interactive /qna command to interrogate and edit the generated data.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Rohit Ekbote"
+  },
+  "homepage": "https://github.com/Rohit-Ekbote/claude-plugins",
+  "repository": "https://github.com/Rohit-Ekbote/claude-plugins",
+  "license": "MIT",
+  "keywords": ["fde", "engagement", "field-guide", "summary", "progress", "requirements", "offline", "generate-only"]
+}

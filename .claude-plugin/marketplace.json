@@ -57,6 +57,17 @@
       },
       "tags": ["helm", "runwhen", "install", "wizard", "values", "kubernetes"],
       "homepage": "https://github.com/Rohit-Ekbote/claude-plugins"
+    },
+    {
+      "name": "fde-tools",
+      "description": "Forward Deployed Engineer engagement toolkit: offline field guide, summary, dated progress timeline, dated requirements log, and an interactive /qna command to interrogate and edit the generated data",
+      "version": "0.1.0",
+      "source": "./fde-tools",
+      "author": {
+        "name": "Rohit Ekbote"
+      },
+      "tags": ["fde", "engagement", "field-guide", "summary", "progress", "requirements", "offline"],
+      "homepage": "https://github.com/Rohit-Ekbote/claude-plugins"
     }
   ]
 }

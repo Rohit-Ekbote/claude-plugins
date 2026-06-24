@@ -1,0 +1,3 @@
+2026-04-01
+- Confirmed block storage available via local-path provisioner; NFS-only applied to the archive tier only.
+- Installed platform; runner came up. Setup looks ready.
