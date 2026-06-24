@@ -27,6 +27,11 @@ grep -q '"name": *"fde-tools"' "$PLUGIN_DIR/.claude-plugin/plugin.json" 2>/dev/n
   && { echo "  PASS: plugin.json names fde-tools"; PASS=$((PASS+1)); } \
   || { echo "  FAIL: plugin.json does not name fde-tools"; FAIL=$((FAIL+1)); }
 
+echo "== Task 2: _engagement-context include =="
+assert_file "$CMD/_engagement-context.md" "_engagement-context.md exists"
+assert_no_grep "~/.claude/commands" "$CMD/_engagement-context.md" "no home-path refs in context include"
+assert_grep "latest-wins-by-topic" "$CMD/_engagement-context.md" "context include defines resolver"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""
