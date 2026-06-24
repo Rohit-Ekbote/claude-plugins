@@ -43,6 +43,11 @@ assert_file "$PLUGIN_DIR/assets/fde-guide-page.html.tmpl" "page template exists"
 assert_grep "\\{\\{PAGE_BODY\\}\\}" "$PLUGIN_DIR/assets/fde-guide-page.html.tmpl" "template has PAGE_BODY token"
 assert_grep "\\{\\{PAGER\\}\\}" "$PLUGIN_DIR/assets/fde-guide-page.html.tmpl" "template has PAGER token"
 
+echo "== Task 5: build-guide command =="
+assert_file "$CMD/build-guide.md" "build-guide.md exists"
+assert_no_grep "~/.claude/commands" "$CMD/build-guide.md" "no home-path refs in build-guide"
+assert_grep "CLAUDE_PLUGIN_ROOT" "$CMD/build-guide.md" "build-guide uses plugin-root refs"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""
