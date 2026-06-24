@@ -2,7 +2,7 @@
 
 > Shared include referenced by `update-progress` and `update-requirements`. It is **not** a slash command. It defines how to extract and attribute timestamps from the engagement material so the two timeline outputs anchor each item to the date it actually occurred.
 
-## date sources (priority order)
+## Date sources (priority order)
 
 When attributing an item (a development, decision, blocker, ask) to a date, use the first source that yields a confident date:
 

@@ -34,7 +34,7 @@ assert_grep "latest-wins-by-topic" "$CMD/_engagement-context.md" "context includ
 
 echo "== Task 3: _date-parsing include =="
 assert_file "$CMD/_date-parsing.md" "_date-parsing.md exists"
-assert_grep "date sources" "$CMD/_date-parsing.md" "date-parsing lists source priority"
+assert_grep "Date sources" "$CMD/_date-parsing.md" "date-parsing lists source priority"
 assert_grep "date unknown" "$CMD/_date-parsing.md" "date-parsing defines ambiguity fallback"
 
 # --- later tasks append assertion blocks below this line ---
