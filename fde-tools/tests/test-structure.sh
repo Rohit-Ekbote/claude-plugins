@@ -37,6 +37,12 @@ assert_file "$CMD/_date-parsing.md" "_date-parsing.md exists"
 assert_grep "Date sources" "$CMD/_date-parsing.md" "date-parsing lists source priority"
 assert_grep "date unknown" "$CMD/_date-parsing.md" "date-parsing defines ambiguity fallback"
 
+echo "== Task 4: guide assets =="
+assert_file "$PLUGIN_DIR/assets/fde-guide.css" "fde-guide.css exists"
+assert_file "$PLUGIN_DIR/assets/fde-guide-page.html.tmpl" "page template exists"
+assert_grep "\\{\\{PAGE_BODY\\}\\}" "$PLUGIN_DIR/assets/fde-guide-page.html.tmpl" "template has PAGE_BODY token"
+assert_grep "\\{\\{PAGER\\}\\}" "$PLUGIN_DIR/assets/fde-guide-page.html.tmpl" "template has PAGER token"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""
