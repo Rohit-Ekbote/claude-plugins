@@ -12,6 +12,8 @@ Run the commands from inside an engagement directory containing read-only source
 
 These are **never modified**. Commands produce and maintain: `summary.md`, `progress.md`, `requirements.md`, `guide/`, the `corrections.md` overlay, and an append-only `changelog.md`.
 
+`summary.md`, `progress.md`, `requirements.md`, and `guide/` are **regenerated** on each run. `corrections.md` and `changelog.md` are **persistent** — they survive regeneration, and the latest-wins-by-topic overlay in `corrections.md` is folded back into every regenerated doc.
+
 ## Commands
 
 | Command | Output | Dated? |

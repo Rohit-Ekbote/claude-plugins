@@ -30,7 +30,7 @@ An **ask** is any new feature request, capability request, or requirement raised
 
 - **Ask** — a one-line statement of what is being requested.
 - **Source** — the forum and who raised it (e.g. `Slack #eng — Priya`, `Granola 2026-03-12 kickoff — customer lead`, `raw/field-notes.txt`).
-- **Status** — only if explicitly stated in the source (e.g. `requested`, `in-progress`, `delivered`, `declined`). If no status is stated, write `requested`.
+- **Status** — default to `requested`; override it only when the source explicitly states a different status (e.g. `in-progress`, `delivered`, `declined`).
 
 ## Step 5 — Write requirements.md
 
@@ -61,6 +61,8 @@ Place any unresolved-contradiction callouts inline within the relevant dated sec
 - When a later statement supersedes an ask recorded in an **earlier** dated section (e.g. it was delivered or withdrawn), insert this exact marker immediately under that earlier entry, without rewriting the original line:
 
   `> ⚠️ Later updated (YYYY-MM-DD): <what is now true>.`
+
+  (This marker reads **Later updated** — distinct on purpose from the `> ⚠️ Later corrected` marker `update-progress` uses. An ask being delivered or withdrawn is a status update, not a correction of an earlier mistake.)
 
 ## Step 7 — Outputs
 

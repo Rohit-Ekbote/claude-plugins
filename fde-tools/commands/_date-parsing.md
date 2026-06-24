@@ -21,6 +21,8 @@ When attributing an item (a development, decision, blocker, ask) to a date, use 
 
 Attribute each item to the date it actually occurred. Never pile everything under the run date. A single fact is recorded once, under the date it happened — not duplicated across multiple dates.
 
+When two sources give conflicting dates for the same item, resolve using the **Date sources** priority order above — the higher-priority source's date wins.
+
 ## Ambiguity
 
 If a date cannot be confidently determined for an item, tag it `(date unknown)` and group such items under a trailing `## (date unknown)` section in the output. Do not guess a date.

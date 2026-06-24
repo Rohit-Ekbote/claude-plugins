@@ -7,7 +7,7 @@ rm ~/.claude/commands/build-fde-guide.md
 rm ~/.claude/commands/summarize-engagement.md
 rm ~/.claude/commands/update-engagement-progress.md
 rm ~/.claude/commands/correct-engagement-data.md
-rm ~/.claude/commands/_engagement-context.md
+rm ~/.claude/commands/_engagement-context.md   # internal shared include, not a user command
 rm -rf ~/.claude/commands/assets   # only if no other global command uses it
 ```
 

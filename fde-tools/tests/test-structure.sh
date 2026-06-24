@@ -23,9 +23,7 @@ assert_no_grep() {
 
 echo "== Task 1: plugin manifest =="
 assert_file "$PLUGIN_DIR/.claude-plugin/plugin.json" "plugin.json exists"
-grep -q '"name": *"fde-tools"' "$PLUGIN_DIR/.claude-plugin/plugin.json" 2>/dev/null \
-  && { echo "  PASS: plugin.json names fde-tools"; PASS=$((PASS+1)); } \
-  || { echo "  FAIL: plugin.json does not name fde-tools"; FAIL=$((FAIL+1)); }
+assert_grep '"name": *"fde-tools"' "$PLUGIN_DIR/.claude-plugin/plugin.json" "plugin.json names fde-tools"
 
 echo "== Task 2: _engagement-context include =="
 assert_file "$CMD/_engagement-context.md" "_engagement-context.md exists"
