@@ -32,6 +32,11 @@ assert_file "$CMD/_engagement-context.md" "_engagement-context.md exists"
 assert_no_grep "~/.claude/commands" "$CMD/_engagement-context.md" "no home-path refs in context include"
 assert_grep "latest-wins-by-topic" "$CMD/_engagement-context.md" "context include defines resolver"
 
+echo "== Task 3: _date-parsing include =="
+assert_file "$CMD/_date-parsing.md" "_date-parsing.md exists"
+assert_grep "date sources" "$CMD/_date-parsing.md" "date-parsing lists source priority"
+assert_grep "date unknown" "$CMD/_date-parsing.md" "date-parsing defines ambiguity fallback"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""
