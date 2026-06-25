@@ -91,6 +91,13 @@ assert_grep "Rule" "$CMD/_runwhen-primitives.md" "primitives names Rule"
 assert_grep "Scheduled Command" "$CMD/_runwhen-primitives.md" "primitives names Scheduled Command"
 assert_grep "Knowledge" "$CMD/_runwhen-primitives.md" "primitives names Knowledge"
 
+echo "== design-solutions: command =="
+assert_file "$CMD/design-solutions.md" "design-solutions.md exists"
+assert_no_grep "~/.claude/commands" "$CMD/design-solutions.md" "no home-path refs in design-solutions"
+assert_grep "_engagement-context.md" "$CMD/design-solutions.md" "design-solutions references engagement-context"
+assert_grep "_runwhen-primitives.md" "$CMD/design-solutions.md" "design-solutions references runwhen-primitives"
+assert_grep "solutions.md" "$CMD/design-solutions.md" "design-solutions writes solutions.md"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""
