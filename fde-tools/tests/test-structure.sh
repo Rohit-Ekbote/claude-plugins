@@ -107,6 +107,9 @@ echo "== design-solutions: packaging =="
 assert_grep '"version": *"0.2.0"' "$PLUGIN_DIR/.claude-plugin/plugin.json" "plugin version bumped to 0.2.0"
 assert_grep "design-solutions" "$PLUGIN_DIR/README.md" "README documents design-solutions"
 
+echo "== design-solutions: qna Intent 3 target =="
+assert_grep "requirements.md. / .solutions.md" "$CMD/_qna-engine.md" "qna-engine Intent 3 lists solutions.md as editable target"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""

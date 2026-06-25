@@ -43,9 +43,9 @@ The user states that something recorded is wrong and gives the corrected truth (
 
 The user requests a specific surgical change to existing generated data, or to amend/delete a `corrections.md` entry ("delete the duplicate ingress line in progress.md for 2026-04-01", "remove the storage-backend correction I added by mistake").
 
-- Make the precise edit in place to the target file (`summary.md` / `progress.md` / `requirements.md` / a `guide/` page), OR amend/delete the named `corrections.md` entry.
+- Make the precise edit in place to the target file (`summary.md` / `progress.md` / `requirements.md` / `solutions.md` / a `guide/` page), OR amend/delete the named `corrections.md` entry.
 - **Append a `changelog.md` audit entry** (see below) for every such mutation.
-- **Warn about regeneration overwrite:** if the target is a generated doc, tell the user that a later `/update-progress`, `/update-requirements`, `/summarize-engagement`, or `/build-guide` run may overwrite this in-place edit, and suggest recording it as a correction (Intent 2) instead if it should persist. Amend/delete of a `corrections.md` entry is durable and carries no such warning.
+- **Warn about regeneration overwrite:** if the target is a generated doc, tell the user that a later `/update-progress`, `/update-requirements`, `/design-solutions`, `/summarize-engagement`, or `/build-guide` run may overwrite this in-place edit, and suggest recording it as a correction (Intent 2) instead if it should persist. Amend/delete of a `corrections.md` entry is durable and carries no such warning.
 
 ## changelog.md (append-only audit trail)
 
