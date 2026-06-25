@@ -110,6 +110,11 @@ assert_grep "design-solutions" "$PLUGIN_DIR/README.md" "README documents design-
 echo "== design-solutions: qna Intent 3 target =="
 assert_grep "requirements.md. / .solutions.md" "$CMD/_qna-engine.md" "qna-engine Intent 3 lists solutions.md as editable target"
 
+echo "== design-solutions: customer-value inclusion test =="
+assert_grep "Inclusion test" "$CMD/design-solutions.md" "design-solutions defines the inclusion test"
+assert_grep "RunWhen-viability" "$CMD/design-solutions.md" "design-solutions excludes RunWhen-viability concerns"
+assert_grep "Routed to requirements" "$CMD/design-solutions.md" "design-solutions routes excluded customer-side asks"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""

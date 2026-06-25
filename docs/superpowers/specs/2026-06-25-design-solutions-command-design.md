@@ -130,7 +130,15 @@ Behavior:
    callout) and `${CLAUDE_PLUGIN_ROOT}/commands/_runwhen-primitives.md` (vocabulary).
 2. **Mine the inputs for problems**, not just stated asks — operational pain, SME
    dependencies, recurring failure modes, friction points. A problem may come from a
-   thin hint.
+   thin hint. **Inclusion test:** each entry must be (a) the *customer's* operational
+   problem, not RunWhen's, and (b) one whose solution *demonstrates RunWhen's value to
+   the customer* (informs the buy decision). **Exclude RunWhen-viability concerns** —
+   platform scale/sustainability, RunWhen's own COGS, protecting the customer's API
+   server from RunWhen's own load, workspace-scoping mechanics — and deployment/
+   integration asks. When an excluded concern is a genuine customer-side ask (e.g. a
+   workspace-scoping decision), record it under a trailing "Routed to requirements"
+   list so it surfaces in the `/update-requirements` lane rather than vanishing.
+   (Cost/scale may still appear as a design constraint *within* an included use case.)
 3. For each problem, **actively design a RunWhen solution** mapped onto the primitives.
 4. Write `solutions.md`, **regenerated each run**, entries **ordered by POC value**
    (core value drivers first, e.g. the SME simulator).
