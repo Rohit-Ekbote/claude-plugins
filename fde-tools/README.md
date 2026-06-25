@@ -21,7 +21,8 @@ These are **never modified**. Commands produce and maintain: `summary.md`, `prog
 | `/build-guide` | `guide/` — multi-page offline HTML field guide | no (current-truth) |
 | `/summarize-engagement` | `summary.md` — profile, infra, goals, solutions, risks | no (current-truth) |
 | `/update-progress` | `progress.md` — newest-first dated timeline of developments/decisions/blockers | **yes** |
-| `/update-requirements` | `requirements.md` — newest-first dated timeline of feature asks | **yes** |
+| `/update-requirements` | `requirements.md` — newest-first dated timeline of deployment/integration asks | **yes** |
+| `/design-solutions` | `solutions.md` — backlog of customer problems → proposed RunWhen solution designs | no (priority-ordered) |
 | `/qna` | answers, corrections, and surgical edits over the generated docs | — |
 
 ## How data flows
@@ -39,3 +40,10 @@ These are **never modified**. Commands produce and maintain: `summary.md`, `prog
 3. **Direct edit / delete** — surgical in-place edits to a generated doc, or amend/delete of a `corrections.md` entry. Every such change is logged to the append-only `changelog.md`. Direct edits to generated docs may be overwritten by a later regeneration — `/qna` warns you and suggests recording a correction instead if it should persist.
 
 `slack/`, `granola/`, and `raw/` are never modified by any command.
+
+## solutions vs requirements
+
+Two different artifacts for two different audiences:
+
+- **`/update-requirements` → `requirements.md`** — *deployment/integration asks*: what GR needs to install and run the RunWhen platform (chart knobs, air-gap, auth, storage, SSO). A dated timeline.
+- **`/design-solutions` → `solutions.md`** — *product solution design*: the customer's operational problems and proposed RunWhen solutions (assistants, tasks, rules, workflows, KBs) that drive the POC's scope-definition and tool-building phases. A priority-ordered backlog. Unlike the other commands, it actively designs — every solution is a first-draft proposal you refine via `/qna`.

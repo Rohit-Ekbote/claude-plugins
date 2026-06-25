@@ -103,6 +103,10 @@ assert_grep "solutions.md" "$CMD/_qna-engine.md" "qna-engine scope includes solu
 assert_grep "design-solutions.md" "$CMD/_qna-engine.md" "qna-engine regen table includes design-solutions"
 assert_grep "solutions.md" "$CMD/qna.md" "qna loads solutions.md"
 
+echo "== design-solutions: packaging =="
+assert_grep '"version": *"0.2.0"' "$PLUGIN_DIR/.claude-plugin/plugin.json" "plugin version bumped to 0.2.0"
+assert_grep "design-solutions" "$PLUGIN_DIR/README.md" "README documents design-solutions"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""
