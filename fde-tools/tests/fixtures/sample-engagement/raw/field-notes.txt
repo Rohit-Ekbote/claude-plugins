@@ -1,3 +1,5 @@
 2026-04-01
 - Confirmed block storage available via local-path provisioner; NFS-only applied to the archive tier only.
 - Installed platform; runner came up. Setup looks ready.
+- Users lean heavily on a handful of SMEs to keep pipelines healthy and to triage incidents; GR wants RunWhen to reduce that SME dependency (the core POC value driver).
+- Every morning before market open, prep jobs run for each component; when one fails the on-call has to RCA it by hand and decide whether to rerun — a recurring, time-sensitive pain.
