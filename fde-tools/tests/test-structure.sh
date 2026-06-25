@@ -98,6 +98,11 @@ assert_grep "_engagement-context.md" "$CMD/design-solutions.md" "design-solution
 assert_grep "_runwhen-primitives.md" "$CMD/design-solutions.md" "design-solutions references runwhen-primitives"
 assert_grep "solutions.md" "$CMD/design-solutions.md" "design-solutions writes solutions.md"
 
+echo "== design-solutions: qna integration =="
+assert_grep "solutions.md" "$CMD/_qna-engine.md" "qna-engine scope includes solutions.md"
+assert_grep "design-solutions.md" "$CMD/_qna-engine.md" "qna-engine regen table includes design-solutions"
+assert_grep "solutions.md" "$CMD/qna.md" "qna loads solutions.md"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""
