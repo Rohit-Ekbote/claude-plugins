@@ -83,6 +83,33 @@ assert_file "$PLUGIN_DIR/RETIRE-GLOBALS.md" "retirement doc exists"
 ROOT="$(dirname "$PLUGIN_DIR")"
 assert_grep "\"name\": *\"fde-tools\"" "$ROOT/.claude-plugin/marketplace.json" "fde-tools registered in marketplace"
 
+echo "== design-solutions: _runwhen-primitives include =="
+assert_file "$CMD/_runwhen-primitives.md" "_runwhen-primitives.md exists"
+assert_grep "AI Assistant" "$CMD/_runwhen-primitives.md" "primitives names AI Assistant"
+assert_grep "Workflow" "$CMD/_runwhen-primitives.md" "primitives names Workflow"
+assert_grep "Rule" "$CMD/_runwhen-primitives.md" "primitives names Rule"
+assert_grep "Scheduled Command" "$CMD/_runwhen-primitives.md" "primitives names Scheduled Command"
+assert_grep "Knowledge" "$CMD/_runwhen-primitives.md" "primitives names Knowledge"
+
+echo "== design-solutions: command =="
+assert_file "$CMD/design-solutions.md" "design-solutions.md exists"
+assert_no_grep "~/.claude/commands" "$CMD/design-solutions.md" "no home-path refs in design-solutions"
+assert_grep "_engagement-context.md" "$CMD/design-solutions.md" "design-solutions references engagement-context"
+assert_grep "_runwhen-primitives.md" "$CMD/design-solutions.md" "design-solutions references runwhen-primitives"
+assert_grep "solutions.md" "$CMD/design-solutions.md" "design-solutions writes solutions.md"
+
+echo "== design-solutions: qna integration =="
+assert_grep "solutions.md" "$CMD/_qna-engine.md" "qna-engine scope includes solutions.md"
+assert_grep "design-solutions.md" "$CMD/_qna-engine.md" "qna-engine regen table includes design-solutions"
+assert_grep "solutions.md" "$CMD/qna.md" "qna loads solutions.md"
+
+echo "== design-solutions: packaging =="
+assert_grep '"version": *"0.2.0"' "$PLUGIN_DIR/.claude-plugin/plugin.json" "plugin version bumped to 0.2.0"
+assert_grep "design-solutions" "$PLUGIN_DIR/README.md" "README documents design-solutions"
+
+echo "== design-solutions: qna Intent 3 target =="
+assert_grep "requirements.md. / .solutions.md" "$CMD/_qna-engine.md" "qna-engine Intent 3 lists solutions.md as editable target"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""

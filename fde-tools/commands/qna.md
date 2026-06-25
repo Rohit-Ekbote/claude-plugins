@@ -20,7 +20,7 @@ Read and follow in full:
 Read (skip any that are absent):
 
 - `corrections.md` and a legacy `side-notes.md` if present (read first).
-- `summary.md`, `progress.md`, `requirements.md`, and the `guide/` pages — the generated docs under discussion.
+- `summary.md`, `progress.md`, `requirements.md`, `solutions.md`, and the `guide/` pages — the generated docs under discussion.
 - `changelog.md` if present — prior audit history.
 - All readable files under `slack/`, `granola/`, `raw/` recursively — read-only source material for provenance.
 

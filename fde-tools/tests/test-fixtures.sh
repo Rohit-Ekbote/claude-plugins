@@ -29,6 +29,10 @@ grep -qi "NFS-only" "$FX/granola/2026-03-12-kickoff.md" && grep -qi "block stora
 grep -qi "new ask" "$FX/granola/2026-03-12-kickoff.md" && grep -qi "new ask" "$FX/slack/eng-channel.txt" \
   && ok "feature asks present in two forums" || no "feature asks missing"
 
+# Product-problem hints for design-solutions (SME dependency + recurring prep-job failure).
+grep -qi "SME" "$FX/raw/field-notes.txt" && grep -qi "prep job" "$FX/raw/field-notes.txt" \
+  && ok "product-problem hints present (SME dependency + prep-job failure)" || no "product-problem hints missing"
+
 echo ""
 echo "TOTAL: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
