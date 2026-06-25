@@ -61,7 +61,7 @@
     {
       "name": "fde-tools",
       "description": "Forward Deployed Engineer engagement toolkit: offline field guide, summary, dated progress timeline, dated requirements log, RunWhen solution-design backlog, and an interactive /qna command to interrogate and edit the generated data",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "source": "./fde-tools",
       "author": {
         "name": "Rohit Ekbote"
