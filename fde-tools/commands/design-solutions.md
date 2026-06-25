@@ -25,7 +25,21 @@ Apply the latest-wins-by-topic resolver: for each problem/topic, the most recent
 
 ## Step 3 — Mine for problems
 
-Identify the **customer's problems toward RunWhen as a product** — operational pain, SME dependencies, recurring failure modes, friction points, and value drivers — NOT deployment/integration asks (those belong in `requirements.md`). A problem may come from a thin hint: a single line about a recurring pain is enough to elaborate into a full problem statement. Build on the hints; do not merely quote them.
+Identify the **customer's operational problems that RunWhen can solve to deliver value** — the use cases that demonstrate why the customer would adopt RunWhen and that inform their buy decision. Mine from operational pain, SME dependencies, recurring failure modes, friction points, and value drivers. A problem may come from a thin hint: a single line about a recurring pain is enough to elaborate into a full problem statement. Build on the hints; do not merely quote them.
+
+**Inclusion test — every entry must pass BOTH:**
+
+1. It is the **customer's** operational problem (something their operators/users face running their own systems) — not RunWhen's problem.
+2. Solving it **demonstrates RunWhen's value to the customer** — it helps them decide whether RunWhen is worth adopting.
+
+**Exclude — do NOT make these solution entries:**
+
+- **RunWhen-viability concerns** — anything about making RunWhen itself deployable, scalable, or affordable on the customer's infrastructure: platform scale/sustainability, RunWhen's own COGS/compute consumption, protecting the customer's API server from RunWhen's own load, workspace-scoping mechanics. Solving these is table-stakes for adoption or RunWhen's engineering burden — it delivers no customer value and does not inform the buy decision.
+- **Deployment/integration asks** — chart knobs, air-gap, auth, storage, SSO, etc. (the `/update-requirements` lane).
+
+When an excluded concern is nonetheless a genuine **customer-side** ask or decision (e.g. a workspace-scoping decision the customer must make, or a deployment requirement), do not drop it silently — record it in the trailing **"Routed to requirements"** list (see Step 5) so it surfaces in the deployment-asks lane instead of vanishing. Pure RunWhen-engineering-burden items (e.g. RunWhen's own COGS) need no routing note.
+
+(Cost/scale may still appear as a *design constraint within* an included use case — e.g. bounding COGS in incident triage — just never as an entry's reason to exist.)
 
 ## Step 4 — Design a solution for each problem
 
@@ -70,6 +84,20 @@ Rules for entries:
 - Keep the `**Solution (proposed):**` heading on every entry — these are recommendations, not commitments.
 - **Status** defaults to `proposed`; set it to `scoping`, `building`, or `built` only when an input or a `corrections.md` entry explicitly says so.
 - Place any unresolved-contradiction callouts inline in the relevant entry using `> ⚠️ Contradiction: <topic> — <A> vs <B>; unresolved.`
+
+After the entries, if Step 3 routed any customer-side concern out of the use cases, add this trailing section (omit it entirely if nothing was routed):
+
+```
+---
+
+## Routed to requirements
+
+_Customer-side concerns surfaced here but excluded from the use cases above — they belong in the deployment/scope lane (`/update-requirements`), not as value use cases._
+
+- <concern> — <one line on why it's a deployment/scope ask, not a value use case>
+```
+
+Do not list pure RunWhen-engineering-burden items here (e.g. RunWhen's own COGS); those are simply excluded.
 
 ## Step 6 — Idempotency
 
