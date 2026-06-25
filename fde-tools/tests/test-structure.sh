@@ -83,6 +83,14 @@ assert_file "$PLUGIN_DIR/RETIRE-GLOBALS.md" "retirement doc exists"
 ROOT="$(dirname "$PLUGIN_DIR")"
 assert_grep "\"name\": *\"fde-tools\"" "$ROOT/.claude-plugin/marketplace.json" "fde-tools registered in marketplace"
 
+echo "== design-solutions: _runwhen-primitives include =="
+assert_file "$CMD/_runwhen-primitives.md" "_runwhen-primitives.md exists"
+assert_grep "AI Assistant" "$CMD/_runwhen-primitives.md" "primitives names AI Assistant"
+assert_grep "Workflow" "$CMD/_runwhen-primitives.md" "primitives names Workflow"
+assert_grep "Rule" "$CMD/_runwhen-primitives.md" "primitives names Rule"
+assert_grep "Scheduled Command" "$CMD/_runwhen-primitives.md" "primitives names Scheduled Command"
+assert_grep "Knowledge" "$CMD/_runwhen-primitives.md" "primitives names Knowledge"
+
 # --- later tasks append assertion blocks below this line ---
 
 echo ""
