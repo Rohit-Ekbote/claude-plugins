@@ -76,6 +76,46 @@ for f in "$FIXT"/expected/airgap-flat-mirror/values-registry.yaml \
   else ok "no public registry host in $label"; fi
 done
 
+# --- N1 guard: pinned subchart tags must be self-warning and must NOT drift
+# from the airgap-image-manifest baseline. This is the check that would have
+# caught v0.1.1 silently hard-pinning tags with no verify warning.
+MANIFEST="$PLUGIN_DIR/data/guide-sections/airgap-image-manifest.md"
+# canonical pinned tag -> the exact ref that must appear in the manifest baseline.
+PIN_neo4j="library/neo4j:5.26.0"
+PIN_vault="hashicorp/vault:1.21.2"
+PIN_bci="bci/bci-base:15.7"
+
+echo "== manifest baseline lists each hard-pinned tag (single source of truth) =="
+for ref in "$PIN_neo4j" "$PIN_vault" "$PIN_bci"; do
+  if grep -qF "$ref" "$MANIFEST"; then ok "manifest baseline has $ref"
+  else no "manifest baseline MISSING $ref (overlay would drift from manifest)"; fi
+done
+
+echo "== every pinned tag in the overlay is self-warning AND matches the manifest =="
+for f in "$FIXT"/expected/airgap-flat-mirror/values-registry.yaml \
+         "$FIXT"/expected/airgap-jfrog/values-registry.yaml; do
+  label="$(basename "$(dirname "$f")")/$(basename "$f")"
+  [ -f "$f" ] || { no "missing expected overlay: $label"; continue; }
+  # (b1) a visible verify-against-Chart.lock warning rides with the overlay.
+  if grep -q 'x-airgap-pinned-tags-notice' "$f" && grep -q 'Chart.lock' "$f"; then
+    ok "$label carries an x-airgap-pinned-tags-notice / Chart.lock warning"
+  else no "$label has NO verify-against-Chart.lock warning for its pinned tags"; fi
+  # (b2) each pinned version appears in the overlay AND equals the manifest ref.
+  for pair in "neo4j 5.26.0 $PIN_neo4j" "vault 1.21.2 $PIN_vault" "bci 15.7 $PIN_bci"; do
+    set -- $pair; name="$1"; ver="$2"; ref="$3"
+    if grep -qF "$ver" "$f" && grep -qF "$ref" "$MANIFEST"; then
+      ok "$label pins $name $ver, matching the manifest"
+    else no "$label pins $name $ver but it does NOT match the manifest baseline"; fi
+  done
+done
+
+echo "== catalog registry options declare the pinned-tags notice (structural guard) =="
+for opt in flat-mirror jfrog-per-upstream; do
+  if option_block "$opt" | grep -q 'x-airgap-pinned-tags-notice'; then
+    ok "$opt emits x-airgap-pinned-tags-notice"
+  else no "$opt lost its x-airgap-pinned-tags-notice (pinned tags would be silent again)"; fi
+done
+
 echo ""
 echo "airgap-registry: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

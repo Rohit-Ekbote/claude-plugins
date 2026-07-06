@@ -64,6 +64,14 @@ registry.suse.com/bci/bci-base:15.7
 > selected dynamically by `cc-catalog-svc` at task time; mirror the current
 > dated tag and keep `listRemoteFolderItems` enabled on the ghcr remote.
 
+> **Canonical source for the overlay's hard-pinned tags.** Three tags in this
+> baseline — `library/neo4j:5.26.0`, `hashicorp/vault:1.21.2`, and
+> `bci/bci-base:15.7` — are also emitted as full-value overrides in
+> `values-registry.yaml` (and restated in its `x-airgap-pinned-tags-notice`
+> block). This baseline is the single source of truth for those three; if you
+> change one here, change it in the overlay too. The wizard's regression guard
+> asserts the two stay identical, so they cannot silently drift.
+
 #### 3. Copy each image to the mirror (skopeo — no local daemon needed)
 
 ```bash

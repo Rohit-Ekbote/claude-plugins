@@ -137,8 +137,29 @@ axes:
         params:
           - { id: registryHost, prompt: "Mirror registry host + path prefix (e.g. harbor.corp.example/runwhen or jcr.example.com/runwhen)" }
           - { id: pullSecretName, prompt: "Name of the pre-created Kubernetes image pull Secret (e.g. harbor-pull-secret)" }
-          - { id: helmMirrorUrl, prompt: "Helm chart-mirror base URL for the five subchart aliases (e.g. https://harbor.corp.example/chartrepo — leave blank if only mirroring images, not charts)" }
+          - { id: helmMirrorUrl, prompt: "Helm CHART repo base URL for the five subchart aliases — this is a Helm chart repository, NOT the image mirror above (Harbor exposes charts under /chartrepo/<project>, a different path than its image project). Leave blank if you mirror only images (charts registered manually)." }
         emits:
+          # N1: catalog `emits:` YAML comments are DROPPED when the wizard parses +
+          # deep-merges the fragment, so a verify warning cannot ride on a comment.
+          # It is injected as a real YAML value instead — `x-airgap-pinned-tags-notice`
+          # is a top-level key Helm ignores (same `x-` convention the chart's own
+          # values-example-airgap-jcr.yaml uses for `x-jcr-anchors`), so it survives
+          # GENERATE and appears verbatim at the top of the generated overlay.
+          # The pinnedTags values are the single source of truth shared with
+          # data/guide-sections/airgap-image-manifest.md (the regression guard
+          # asserts they match — that is what stops overlay/manifest drift).
+          x-airgap-pinned-tags-notice:
+            warning: >-
+              PINNED subchart image tags in this overlay target chart ~0.2.x. VERIFY
+              each against your Chart.lock (run `helm dependency update`, then read
+              Chart.lock) and the air-gap image manifest in your USER-GUIDE before
+              installing — the mirror must hold the exact tag your chart resolves, or
+              the image pull fails. These full-value overrides beat the chart's own
+              resolved subchart pins.
+            pinnedTags:
+              neo4j: "5.26.0"
+              vault: "1.21.2"
+              bciBaseHelmTest: "15.7"
           # registryOverride replaces the registry portion of every FIRST-PARTY
           # and chart-utility image (backend-services, mcp-server, cc-catalog,
           # llm-gateway, cortex-tenant, busybox, db-init, vault-client). Per the
@@ -168,14 +189,14 @@ axes:
               repository: "bitnamilegacy/redis"
           neo4j:                         # docker.io/library/neo4j (neo4j subchart; full-path customImage)
             image:
-              customImage: "<REGISTRY_HOST>/library/neo4j:5.26.0"
+              customImage: "<REGISTRY_HOST>/library/neo4j:5.26.0"   # PINNED-TAG 5.26.0 — see x-airgap-pinned-tags-notice
               imagePullSecrets:
                 - "<PULL_SECRET_NAME>"
           vault:                         # docker.io/hashicorp/vault (hashicorp subchart server + chart-native jobs)
             server:
               image:
                 repository: "<REGISTRY_HOST>/hashicorp/vault"
-                tag: "1.21.2"
+                tag: "1.21.2"            # PINNED-TAG 1.21.2 — see x-airgap-pinned-tags-notice
             autoUnseal:
               image:
                 registry: "<REGISTRY_HOST>"
@@ -189,7 +210,7 @@ axes:
               - name: "<PULL_SECRET_NAME>"
             chartTests:                  # registry.suse.com/bci/bci-base — helm-test-only pod
               dbInteraction:
-                image: "<REGISTRY_HOST>/bci/bci-base:15.7"
+                image: "<REGISTRY_HOST>/bci/bci-base:15.7"   # PINNED-TAG 15.7 — see x-airgap-pinned-tags-notice
           metricstore:                   # docker.io/grafana/mimir
             image:
               registry: "<REGISTRY_HOST>"
@@ -209,8 +230,23 @@ axes:
         params:
           - { id: registryHost, prompt: "JFrog / JCR hostname (e.g. jcr.example.com or artifactory.corp.example)" }
           - { id: pullSecretName, prompt: "Name of the pre-created Kubernetes image pull Secret (e.g. jcr-pull-secret)" }
-          - { id: helmMirrorUrl, prompt: "Helm chart-mirror base URL for the five subchart aliases (e.g. https://jcr.example.com/artifactory/helm — leave blank if only mirroring images, not charts)" }
+          - { id: helmMirrorUrl, prompt: "Helm CHART repo base URL for the five subchart aliases — a Helm chart repository, NOT the JFrog image path above (Artifactory serves charts from a helm-type repo, e.g. https://jcr.example.com/artifactory/helm-virtual, distinct from the docker-* image remotes). Leave blank if you mirror only images (charts registered manually)." }
         emits:
+          # N1: see the flat-mirror option — this warning is injected as a YAML value
+          # (not a comment, which parse/merge drops) so it survives GENERATE. pinnedTags
+          # are the single source of truth shared with airgap-image-manifest.md.
+          x-airgap-pinned-tags-notice:
+            warning: >-
+              PINNED subchart image tags in this overlay target chart ~0.2.x. VERIFY
+              each against your Chart.lock (run `helm dependency update`, then read
+              Chart.lock) and the air-gap image manifest in your USER-GUIDE before
+              installing — the mirror must hold the exact tag your chart resolves, or
+              the image pull fails. These full-value overrides beat the chart's own
+              resolved subchart pins.
+            pinnedTags:
+              neo4j: "5.26.0"
+              vault: "1.21.2"
+              bciBaseHelmTest: "15.7"
           global:
             imagePullSecrets:
               - name: "<PULL_SECRET_NAME>"
@@ -250,14 +286,14 @@ axes:
               repository: "bitnamilegacy/redis"
           neo4j:                         # docker.io/library/neo4j (full-path customImage)
             image:
-              customImage: "<REGISTRY_HOST>/docker-dockerhub/library/neo4j:5.26.0"
+              customImage: "<REGISTRY_HOST>/docker-dockerhub/library/neo4j:5.26.0"   # PINNED-TAG 5.26.0 — see x-airgap-pinned-tags-notice
               imagePullSecrets:
                 - "<PULL_SECRET_NAME>"
           vault:
             server:                      # docker.io/hashicorp/vault (subchart server; full-path repository)
               image:
                 repository: "<REGISTRY_HOST>/docker-dockerhub/hashicorp/vault"
-                tag: "1.21.2"
+                tag: "1.21.2"            # PINNED-TAG 1.21.2 — see x-airgap-pinned-tags-notice
             autoUnseal:                  # chart-native jobs, docker.io/hashicorp/vault
               image:
                 registry: "<REGISTRY_HOST>/docker-dockerhub"
@@ -271,7 +307,7 @@ axes:
               - name: "<PULL_SECRET_NAME>"
             chartTests:                  # registry.suse.com/bci/bci-base — helm-test-only pod (docker-suse remote)
               dbInteraction:
-                image: "<REGISTRY_HOST>/docker-suse/bci/bci-base:15.7"
+                image: "<REGISTRY_HOST>/docker-suse/bci/bci-base:15.7"   # PINNED-TAG 15.7 — see x-airgap-pinned-tags-notice
           metricstore:
             image:
               registry: "<REGISTRY_HOST>/docker-dockerhub"
@@ -631,18 +667,12 @@ axes:
 
   - id: optional-components
     title: Optional integrations
-    # multiSelect: the operator may enable any combination of these (they are not
-    # mutually exclusive). Present with AskUserQuestion multiSelect=true; "none"
-    # means an empty selection. Deep-merge every selected option's emits.
+    # multiSelect axis: the operator may enable any combination of these (they are
+    # not mutually exclusive). No "none" option — selecting nothing IS "none".
+    # See SKILL.md step 3 "Multi-select axes" for how the interview handles this.
     multiSelect: true
-    question: "Which optional integrations do you want to enable? Select any combination — none is fine (Slack, alert-ingestor public ingress, Redis deploy pin)."
+    question: "Which optional integrations do you want to enable? Select any combination, or none (Slack, alert-ingestor public ingress, Redis deploy pin)."
     options:
-      - id: none
-        label: "None — minimal install; no optional integrations enabled"
-        emits: {}
-        guide_sections: []
-        known_issues: []
-
       - id: slack
         label: "Slack — wire the bundled slackbot to a Slack app via a pre-created credentials Secret"
         overlay: values-cluster.yaml

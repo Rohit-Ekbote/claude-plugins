@@ -22,11 +22,20 @@ subchart versions — they move independently of the parent chart version):
 
 | Subchart | Image | Tag pinned here |
 |---|---|---|
-| Neo4j | `library/neo4j` | `5.26.0` |
-| Vault (server) | `hashicorp/vault` | `1.21.2` |
+| Neo4j | `library/neo4j` | `5.26.0` (hard-pinned in `values-registry.yaml`) |
+| Vault (server) | `hashicorp/vault` | `1.21.2` (hard-pinned in `values-registry.yaml`) |
+| Qdrant (helm test) | `bci/bci-base` | `15.7` (hard-pinned; helm-test pod only) |
 | Qdrant | `qdrant/qdrant` | chart default (`v1.18.0`) |
 | Redis | `bitnamilegacy/redis` | chart default |
 | SeaweedFS | `chrislusf/seaweedfs` | chart default |
+
+The three **hard-pinned** tags above (`neo4j 5.26.0`, `vault 1.21.2`,
+`bci-base 15.7`) are full-value overrides that beat the chart's own resolved
+subchart pins — `values-registry.yaml` carries an `x-airgap-pinned-tags-notice`
+block restating them next to a "verify against your Chart.lock" warning. They
+are kept identical to the baseline in the air-gap image manifest section; if your
+`Chart.lock` resolves a different version, update **both** places (the wizard's
+regression guard fails if they drift apart).
 
 Read your chart's `Chart.lock` (after `helm dependency update`) for the exact
 resolved subchart versions, or run `image-scripts/fetch-chart-images.sh` to have

@@ -16,13 +16,21 @@ helm repo update
 helm dependency update ./runwhen-platform
 ```
 
-**Air-gapped install — point each alias at your enterprise Helm chart mirror:**
+**Air-gapped install — point each alias at your enterprise Helm chart repo:**
 
 An image mirror is not enough — the thin chart resolves five *chart* aliases at
-`helm dependency update` time. You gave the wizard a Helm chart-mirror base URL
-(`<HELM_MIRROR_URL>`); each alias below is re-pointed at it. (If you left it
-blank, substitute your enterprise Helm chart repository base URL — one per
-upstream, e.g. `.../helm-bitnami`, `.../helm-neo4j` on Artifactory/JCR.)
+`helm dependency update` time, and a **Helm chart repository is a different
+service from your image registry**. On Harbor, for example, charts live under a
+`/chartrepo/<project>` path, not the image project path you set as
+`<REGISTRY_HOST>`; on Artifactory/JCR they live in a `helm`-type repo
+(`.../artifactory/helm-*`), separate from the `docker-*` image remotes. So this
+needs its own base URL.
+
+> **The wizard renders the block below only if you supplied a Helm chart-repo
+> base URL.** If you left that answer blank, it is omitted — register the five
+> aliases yourself against your enterprise Helm chart repository (one URL per
+> upstream), keeping the alias **names** exactly as shown. Do **not** point them
+> at `<REGISTRY_HOST>` — that is the image mirror, not a chart repo.
 
 ```bash
 helm repo add bitnami    <HELM_MIRROR_URL>/bitnami
