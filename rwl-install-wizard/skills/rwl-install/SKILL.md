@@ -53,6 +53,15 @@ Secrets are wired by name (`existingSecret`/`*Ref`) only.
      registry host, UID), prompt for each param and store its value in the
      profile under that axis's answer. These are always non-sensitive shape
      facts — never a secret.
+   - **Multi-select axes.** If the axis declares `multiSelect: true`, present it
+     with the AskUserQuestion tool in multi-select mode: the operator may pick
+     any combination of its options, or none. Such an axis has **no `none`
+     option** — an empty selection *is* "none", so record the answer as an empty
+     list and emit nothing for it. For each option the operator does select,
+     collect that option's `params:` and, at GENERATE, deep-merge every selected
+     option's `emits:` into the target overlay(s). Store the answer as a list of
+     selected option ids under that axis. (Single-select axes are unchanged: one
+     option id per axis.)
 
 4. **Write the profile** to `.claude/rwl-install-profile.yaml` (schemaVersion: 1,
    chartCompat, generatedAt = today, answers map). Save even a partial profile
@@ -70,6 +79,17 @@ Secrets are wired by name (`existingSecret`/`*Ref`) only.
       that name the generated overlays in `-f` flags and substitute the
       operator's domain/namespace. Secret creation appears only as
       `kubectl create secret ... <PLACEHOLDER>` templates.
+      - **`-f` lists name only overlays that were actually written.** Compose
+        every `helm` command from the files present in `rwl-install-out/`, in the
+        order values.yaml → values-registry → values-storage → values-cluster →
+        values-posture. Never emit a `-f values-<x>.yaml` for an overlay this run
+        did not generate (e.g. no `values-posture.yaml` unless a posture/RBAC axis
+        produced it).
+      - **Never emit a dangling placeholder.** If an optional free-value param was
+        left blank (e.g. `helmMirrorUrl`), OMIT the guide block that depends on it
+        rather than rendering the literal `<TOKEN>`. Substitute a param only when
+        the operator supplied it; otherwise drop the block and keep the fallback
+        prose the guide section provides for the blank case.
    3. Collect the de-duplicated union of `known_issues` ids → assemble
       `DEBUG-GUIDE.md` from the matching `data/known-issues/<id>.md` files.
    4. Both guides end with a short "verify it's running / when you're stuck"
