@@ -66,6 +66,55 @@ In each `litellm_params` entry, add `api_key: os.environ/<ENV_VAR_NAME>` where
 before `helm upgrade`; the chart never writes this Secret — it only `envFrom`s it
 onto the gateway pod.
 
+#### Fully air-gapped: local / in-cluster models (no external vendor)
+
+The examples above still call a *vendor* endpoint (Azure/OpenAI on a private
+link). A truly egress-free cluster runs the models **in-cluster** — an Ollama or
+vLLM Deployment for chat/background, and a local embedding server for `embedding`.
+Point `api_base` at the in-cluster Service and give a dummy key (local servers
+ignore auth, but LiteLLM still requires the field):
+
+```yaml
+llmGateway:
+  deploy: true
+  # A Secret is still referenced by name; put any placeholder value in it —
+  # local model servers do not check it, but LiteLLM requires the env var.
+  providersExistingSecret: <LLM_API_KEY_SECRET>
+  models:
+    - model_name: <CHAT_MODEL_NAME>
+      litellm_params:
+        model: openai/<CHAT_MODEL>              # e.g. openai/llama3.1  (Ollama's OpenAI-compat shim)
+        api_base: http://ollama.<NAMESPACE>.svc.cluster.local:11434/v1
+        api_key: os.environ/<LLM_API_KEY_ENV>   # any non-empty placeholder
+    - model_name: <BG_MODEL_NAME>
+      litellm_params:
+        model: openai/<BG_MODEL>
+        api_base: http://ollama.<NAMESPACE>.svc.cluster.local:11434/v1
+        api_key: os.environ/<LLM_API_KEY_ENV>
+    # Local embedder — REQUIRED for vector search when no external embedding API
+    # is reachable. Run a small OpenAI-compatible embedding server in-cluster
+    # (e.g. a text-embeddings-inference / Infinity Deployment) and point at it:
+    - model_name: <EMBEDDING_MODEL_NAME>
+      litellm_params:
+        model: openai/<EMBEDDING_MODEL>         # e.g. openai/bge-small-en-v1.5
+        api_base: http://embeddings.<NAMESPACE>.svc.cluster.local:80/v1
+        api_key: os.environ/<LLM_API_KEY_ENV>
+```
+
+Keep `embedding.dimension` in `llmBootstrap.models.embedding` (below) matched to
+your local embedder's output dimension (e.g. `384` for `bge-small`, `1536` for
+`text-embedding-3-small`) — a wrong dimension surfaces as pgvector insert errors,
+not a deploy-time failure. Mirror the local model images through `<REGISTRY_HOST>`
+alongside the platform images.
+
+> **Air-gap gotcha — the bundled `rw-embedder` pod.** The platform's own
+> `rw-embedder` (separate from the LiteLLM embedding *model* above) downloads a
+> fastembed model from HuggingFace at import time and hangs forever when egress
+> is denied. This is a known issue — see the debug guide entry
+> **"Embedder hangs forever in air-gap"** for the pre-baked-cache image fix and
+> the pre-fix image pin. Mirror the embedder image and apply the pin before
+> installing into an air-gapped cluster.
+
 #### LLM bootstrap (catalog seeding)
 
 Enable `llmBootstrap.enabled: true` alongside four required fields so the chart's

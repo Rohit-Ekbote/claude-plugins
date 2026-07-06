@@ -1,0 +1,14 @@
+schemaVersion: 1
+chartCompat: ">=0.2.37 <0.3"
+generatedAt: "2026-07-06"
+# Regression profile for the air-gap BLOCKER: a flat single-host mirror with
+# every datastore bundled in-cluster. Every image — including subchart-emitted
+# ones registryOverride can't reach — must land on the mirror host.
+answers:
+  registry-routing:
+    option: flat-mirror
+    registryHost: harbor.corp.example/runwhen
+    pullSecretName: harbor-pull-secret
+    helmMirrorUrl: https://harbor.corp.example/chartrepo
+  subcharts:
+    option: bundled-all

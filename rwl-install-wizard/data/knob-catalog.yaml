@@ -118,7 +118,7 @@ axes:
               existingSecret: "<TLS_SECRET>"
               certManager:
                 enabled: false
-        guide_sections: [cluster-domain, ingress-tls]
+        guide_sections: [cluster-domain, ingress-tls, secret-preflight-checklist]
         known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered]
 
   - id: registry-routing
@@ -128,7 +128,7 @@ axes:
       - id: connected
         label: "Connected — pull direct from public upstreams (no mirror)"
         emits: {}
-        guide_sections: [registry-connected]
+        guide_sections: [registry-connected, chart-version, helm-install-command]
         known_issues: []
 
       - id: flat-mirror
@@ -137,7 +137,14 @@ axes:
         params:
           - { id: registryHost, prompt: "Mirror registry host + path prefix (e.g. harbor.corp.example/runwhen or jcr.example.com/runwhen)" }
           - { id: pullSecretName, prompt: "Name of the pre-created Kubernetes image pull Secret (e.g. harbor-pull-secret)" }
+          - { id: helmMirrorUrl, prompt: "Helm chart-mirror base URL for the five subchart aliases (e.g. https://harbor.corp.example/chartrepo — leave blank if only mirroring images, not charts)" }
         emits:
+          # registryOverride replaces the registry portion of every FIRST-PARTY
+          # and chart-utility image (backend-services, mcp-server, cc-catalog,
+          # llm-gateway, cortex-tenant, busybox, db-init, vault-client). Per the
+          # chart's own values.yaml, it CANNOT reach subchart-emitted images —
+          # those are overridden per-subchart below so nothing pulls from a
+          # public registry in an air-gapped cluster.
           registryOverride: "<REGISTRY_HOST>"
           images:
             pullSecrets:
@@ -145,8 +152,56 @@ axes:
           global:
             imagePullSecrets:
               - name: "<PULL_SECRET_NAME>"
-        guide_sections: [registry-flat-mirror, subchart-alias-mirroring]
-        known_issues: [hardcoded-image-refs, thin-chart-subchart-aliases]
+          # --- Subchart / chart-native images registryOverride does not reach ---
+          # Repository paths are preserved under the flat mirror host; seed the
+          # mirror from `fetch-chart-images.sh` output so refs stay self-consistent.
+          postgresql:
+            spilo:                       # ghcr.io/zalando/spilo-17 (Postgres HA)
+              image:
+                registry: "<REGISTRY_HOST>/zalando"
+            pgbouncer:                   # docker.io/edoburu/pgbouncer
+              image:
+                registry: "<REGISTRY_HOST>"
+          redis:                         # docker.io/bitnamilegacy/redis (bitnami subchart)
+            image:
+              registry: "<REGISTRY_HOST>"
+              repository: "bitnamilegacy/redis"
+          neo4j:                         # docker.io/library/neo4j (neo4j subchart; full-path customImage)
+            image:
+              customImage: "<REGISTRY_HOST>/library/neo4j:5.26.0"
+              imagePullSecrets:
+                - "<PULL_SECRET_NAME>"
+          vault:                         # docker.io/hashicorp/vault (hashicorp subchart server + chart-native jobs)
+            server:
+              image:
+                repository: "<REGISTRY_HOST>/hashicorp/vault"
+                tag: "1.21.2"
+            autoUnseal:
+              image:
+                registry: "<REGISTRY_HOST>"
+            backup:
+              image:
+                registry: "<REGISTRY_HOST>"
+          qdrant:                        # docker.io/qdrant/qdrant (qdrant subchart; full-path repository)
+            image:
+              repository: "<REGISTRY_HOST>/qdrant/qdrant"
+            imagePullSecrets:
+              - name: "<PULL_SECRET_NAME>"
+            chartTests:                  # registry.suse.com/bci/bci-base — helm-test-only pod
+              dbInteraction:
+                image: "<REGISTRY_HOST>/bci/bci-base:15.7"
+          metricstore:                   # docker.io/grafana/mimir
+            image:
+              registry: "<REGISTRY_HOST>"
+          seaweedfs:                     # docker.io/chrislusf/seaweedfs (object storage)
+            global:
+              seaweedfs:
+                image:
+                  name: "<REGISTRY_HOST>/chrislusf/seaweedfs"
+            image:
+              repository: "<REGISTRY_HOST>/chrislusf/seaweedfs"
+        guide_sections: [registry-flat-mirror, subchart-alias-mirroring, airgap-image-manifest, chart-version, secret-preflight-checklist, helm-install-command]
+        known_issues: [hardcoded-image-refs, thin-chart-subchart-aliases, embedder-airgap-hang, seaweedfs-image-chrislusf]
 
       - id: jfrog-per-upstream
         label: "JFrog per-upstream — one virtual repo per upstream registry (Artifactory / JCR)"
@@ -154,6 +209,7 @@ axes:
         params:
           - { id: registryHost, prompt: "JFrog / JCR hostname (e.g. jcr.example.com or artifactory.corp.example)" }
           - { id: pullSecretName, prompt: "Name of the pre-created Kubernetes image pull Secret (e.g. jcr-pull-secret)" }
+          - { id: helmMirrorUrl, prompt: "Helm chart-mirror base URL for the five subchart aliases (e.g. https://jcr.example.com/artifactory/helm — leave blank if only mirroring images, not charts)" }
         emits:
           global:
             imagePullSecrets:
@@ -185,17 +241,48 @@ axes:
             pgbouncer:
               image:
                 registry: "<REGISTRY_HOST>/docker-dockerhub"
+          # --- Bundled subchart images (Vault server, Redis, Neo4j, Qdrant,
+          # SeaweedFS) — subchart-emitted, so registry-portion knobs do not reach
+          # them. Full mirrored paths route through the docker-dockerhub remote. ---
+          redis:                         # docker.io/bitnamilegacy/redis
+            image:
+              registry: "<REGISTRY_HOST>/docker-dockerhub"
+              repository: "bitnamilegacy/redis"
+          neo4j:                         # docker.io/library/neo4j (full-path customImage)
+            image:
+              customImage: "<REGISTRY_HOST>/docker-dockerhub/library/neo4j:5.26.0"
+              imagePullSecrets:
+                - "<PULL_SECRET_NAME>"
           vault:
-            autoUnseal:
+            server:                      # docker.io/hashicorp/vault (subchart server; full-path repository)
+              image:
+                repository: "<REGISTRY_HOST>/docker-dockerhub/hashicorp/vault"
+                tag: "1.21.2"
+            autoUnseal:                  # chart-native jobs, docker.io/hashicorp/vault
               image:
                 registry: "<REGISTRY_HOST>/docker-dockerhub"
             backup:
               image:
                 registry: "<REGISTRY_HOST>/docker-dockerhub"
+          qdrant:                        # docker.io/qdrant/qdrant (full-path repository)
+            image:
+              repository: "<REGISTRY_HOST>/docker-dockerhub/qdrant/qdrant"
+            imagePullSecrets:
+              - name: "<PULL_SECRET_NAME>"
+            chartTests:                  # registry.suse.com/bci/bci-base — helm-test-only pod (docker-suse remote)
+              dbInteraction:
+                image: "<REGISTRY_HOST>/docker-suse/bci/bci-base:15.7"
           metricstore:
             image:
               registry: "<REGISTRY_HOST>/docker-dockerhub"
-        guide_sections: [registry-jfrog-per-upstream, subchart-alias-mirroring]
+          seaweedfs:                     # docker.io/chrislusf/seaweedfs
+            global:
+              seaweedfs:
+                image:
+                  name: "<REGISTRY_HOST>/docker-dockerhub/chrislusf/seaweedfs"
+            image:
+              repository: "<REGISTRY_HOST>/docker-dockerhub/chrislusf/seaweedfs"
+        guide_sections: [registry-jfrog-per-upstream, subchart-alias-mirroring, airgap-image-manifest, chart-version, secret-preflight-checklist, helm-install-command]
         known_issues: [hardcoded-image-refs, embedder-airgap-hang, thin-chart-subchart-aliases, seaweedfs-image-chrislusf]
 
   - id: storage-persistence
@@ -371,7 +458,7 @@ axes:
             existingSecret: "<S3_EXISTING_SECRET>"
           seaweedfs:
             deploy: false
-        guide_sections: [object-storage-external-s3]
+        guide_sections: [object-storage-external-s3, secret-preflight-checklist]
         known_issues: []
 
   - id: rbac-identity
@@ -438,7 +525,7 @@ axes:
               existingSecret: "<CA_BUNDLE_SECRET>"
               bundleFile: "<BUNDLE_FILE>"
               setEnvVars: true
-        guide_sections: [internal-ca-trust-bundle]
+        guide_sections: [internal-ca-trust-bundle, secret-preflight-checklist]
         known_issues: [mcp-server-ssl-verify-failed]
 
   - id: llm-endpoint
@@ -485,8 +572,8 @@ axes:
                   model: "<EMBEDDING_MODEL>"
                   api_base: "<LLM_BASE_URL>"
                   api_key: "os.environ/<LLM_API_KEY_ENV>"
-        guide_sections: [llm-endpoint]
-        known_issues: [llm-bootstrap-egress, tiktoken-dns-benign, litellm-configmap-placeholder]
+        guide_sections: [llm-endpoint, secret-preflight-checklist]
+        known_issues: [llm-bootstrap-egress, tiktoken-dns-benign, litellm-configmap-placeholder, embedder-airgap-hang]
 
   - id: subcharts
     title: Datastore deployment mode
@@ -544,7 +631,11 @@ axes:
 
   - id: optional-components
     title: Optional integrations
-    question: "Which optional integration do you want to enable? (Slack, alert-ingestor public ingress, or Redis deploy pin)"
+    # multiSelect: the operator may enable any combination of these (they are not
+    # mutually exclusive). Present with AskUserQuestion multiSelect=true; "none"
+    # means an empty selection. Deep-merge every selected option's emits.
+    multiSelect: true
+    question: "Which optional integrations do you want to enable? Select any combination — none is fine (Slack, alert-ingestor public ingress, Redis deploy pin)."
     options:
       - id: none
         label: "None — minimal install; no optional integrations enabled"
@@ -560,7 +651,7 @@ axes:
         emits:
           slack:
             existingSecret: "<SLACK_SECRET_NAME>"
-        guide_sections: [slack]
+        guide_sections: [slack, secret-preflight-checklist]
         known_issues: [slackbot-selfhosted]
 
       - id: alert-ingestor

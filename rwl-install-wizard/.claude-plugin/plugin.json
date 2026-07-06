@@ -1,7 +1,7 @@
 {
   "name": "rwl-install-wizard",
   "description": "Guided installer for the RunWhen platform Helm chart: interviews the operator and generates layered values overlays plus tailored user and debug guides. Generate-only, self-contained, never handles secrets.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Rohit Ekbote"
   },
