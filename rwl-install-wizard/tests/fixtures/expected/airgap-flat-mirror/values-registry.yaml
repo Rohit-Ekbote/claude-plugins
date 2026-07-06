@@ -1,0 +1,57 @@
+# Expected merged values-registry.yaml for the airgap-flat-mirror profile.
+# INVARIANT: with flat-mirror + bundled-all, NO image may resolve to a public
+# registry — every registry/repository/customImage/name below is on the mirror
+# host (harbor.corp.example/runwhen). registryOverride covers first-party +
+# chart-utility images; the per-subchart blocks cover the images it cannot reach.
+registryOverride: harbor.corp.example/runwhen
+images:
+  pullSecrets:
+    - name: harbor-pull-secret
+global:
+  imagePullSecrets:
+    - name: harbor-pull-secret
+postgresql:
+  spilo:
+    image:
+      registry: harbor.corp.example/runwhen/zalando
+  pgbouncer:
+    image:
+      registry: harbor.corp.example/runwhen
+redis:
+  image:
+    registry: harbor.corp.example/runwhen
+    repository: bitnamilegacy/redis
+neo4j:
+  image:
+    customImage: harbor.corp.example/runwhen/library/neo4j:5.26.0
+    imagePullSecrets:
+      - harbor-pull-secret
+vault:
+  server:
+    image:
+      repository: harbor.corp.example/runwhen/hashicorp/vault
+      tag: "1.21.2"
+  autoUnseal:
+    image:
+      registry: harbor.corp.example/runwhen
+  backup:
+    image:
+      registry: harbor.corp.example/runwhen
+qdrant:
+  image:
+    repository: harbor.corp.example/runwhen/qdrant/qdrant
+  imagePullSecrets:
+    - name: harbor-pull-secret
+  chartTests:
+    dbInteraction:
+      image: harbor.corp.example/runwhen/bci/bci-base:15.7
+metricstore:
+  image:
+    registry: harbor.corp.example/runwhen
+seaweedfs:
+  global:
+    seaweedfs:
+      image:
+        name: harbor.corp.example/runwhen/chrislusf/seaweedfs
+  image:
+    repository: harbor.corp.example/runwhen/chrislusf/seaweedfs

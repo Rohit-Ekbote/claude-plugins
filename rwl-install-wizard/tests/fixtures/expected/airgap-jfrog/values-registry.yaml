@@ -28,13 +28,41 @@ postgresql:
   pgbouncer:
     image:
       registry: jcr.example.com/docker-dockerhub
+redis:
+  image:
+    registry: jcr.example.com/docker-dockerhub
+    repository: bitnamilegacy/redis
+neo4j:
+  image:
+    customImage: jcr.example.com/docker-dockerhub/library/neo4j:5.26.0
+    imagePullSecrets:
+      - jcr-pull-secret
 vault:
+  server:
+    image:
+      repository: jcr.example.com/docker-dockerhub/hashicorp/vault
+      tag: "1.21.2"
   autoUnseal:
     image:
       registry: jcr.example.com/docker-dockerhub
   backup:
     image:
       registry: jcr.example.com/docker-dockerhub
+qdrant:
+  image:
+    repository: jcr.example.com/docker-dockerhub/qdrant/qdrant
+  imagePullSecrets:
+    - name: jcr-pull-secret
+  chartTests:
+    dbInteraction:
+      image: jcr.example.com/docker-suse/bci/bci-base:15.7
 metricstore:
   image:
     registry: jcr.example.com/docker-dockerhub
+seaweedfs:
+  global:
+    seaweedfs:
+      image:
+        name: jcr.example.com/docker-dockerhub/chrislusf/seaweedfs
+  image:
+    repository: jcr.example.com/docker-dockerhub/chrislusf/seaweedfs
