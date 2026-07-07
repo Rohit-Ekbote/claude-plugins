@@ -743,7 +743,14 @@ axes:
               username: "<NEO4J_USERNAME>"
           vault:
             deploy: false
-            address: "<VAULT_ADDRESS>"
+            # Chart >=0.2.x reads vault.external.{address,authMountPoint} when
+            # deploy=false (webhooks/agentfarm/csi-secret-class templates). The
+            # flat `vault.address` shape nil-pointers at template time. authMountPoint
+            # is the k8s auth mount path in your external Vault (chart's bundled-vault
+            # default is "kubernetes").
+            external:
+              address: "<VAULT_ADDRESS>"
+              authMountPoint: kubernetes
           qdrant:
             deploy: false
             useSubchart: false
