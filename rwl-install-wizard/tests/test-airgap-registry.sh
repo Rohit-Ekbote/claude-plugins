@@ -117,6 +117,10 @@ if command -v helm >/dev/null 2>&1 && [ -f "$CHART/Chart.yaml" ]; then
     ok "helm template succeeds (non-rw release; no validate fail-fast)"
     if grep -nE '(image|customImage): *"?('"$PUBLIC_HOSTS"')' "$TMP" >/dev/null; then
       no "rendered manifests contain a public image ref"; else ok "every rendered image ref is on the mirror"; fi
+    # value-at-consumer: airgap profile (only llmBaseUrl -> api_base applies; datastores are bundled)
+    if ruby "$PLUGIN_DIR/lib/check-consumers.rb" "$CATALOG" "$SCRIPT_DIR/fixtures/profiles/airgap.yaml" "$TMP" >/dev/null 2>&1; then
+      ok "airgap: every operator input reaches its consumer"
+    else no "airgap: an operator input did not reach its declared consumer"; fi
   else
     no "helm template FAILED: $(head -1 "$TMP.err")"
   fi
@@ -138,6 +142,9 @@ if command -v helm >/dev/null 2>&1 && [ -f "$CHART/Chart.yaml" ]; then
     grep -q 'vault\.airgap\.example\.com' "$TMP" && vok=0   # no domain-derived host may leak
     [ "$vok" = 1 ] && ok "byo-datastores: VAULT_URL + RUNNER_VAULT_URL resolve to the external Vault" \
                    || no "byo-datastores: a Vault URL does not resolve to the operator's external address"
+    if ruby "$PLUGIN_DIR/lib/check-consumers.rb" "$CATALOG" "$(dirname "$AIRGAP")/../profiles/byo.yaml" "$TMP" >/dev/null 2>&1; then
+      ok "byo: every operator input (vault/pg/redis/neo4j/llm) reaches its consumer"
+    else no "byo: an operator input did not reach its declared consumer"; fi
   else
     no "byo-datastores helm template FAILED: $(head -1 "$TMP.err")"
   fi

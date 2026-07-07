@@ -1,0 +1,21 @@
+schemaVersion: 1
+chartCompat: ">=0.2.37 <0.3"
+generatedAt: "2026-07-07"
+# byo-datastores profile: external Vault/PG/Redis/Neo4j. Rendered by layering the
+# airgap registry+storage+cluster fixtures with the byo-datastores fixture (see the
+# guard's byo render). These answer values MUST match the byo-datastores fixture so
+# the value-at-consumer check has the correct operator inputs.
+answers:
+  llm-endpoint: { option: internal-openai, llmBaseUrl: "https://llm.internal/v1" }
+  subcharts:
+    option: byo-datastores
+    pgHost: pg.example.com
+    pgPort: "5432"
+    pgDatabase: core
+    pgUsername: runwhen
+    redisHost: redis.example.com
+    redisPort: "6379"
+    neo4jUri: "bolt://neo4j.example.com:7687"
+    neo4jUsername: neo4j
+    vaultAddress: "https://vault.example.com"
+    qdrantUrl: "http://qdrant.example.com:6333"
