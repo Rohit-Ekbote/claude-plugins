@@ -60,6 +60,11 @@ if command -v helm >/dev/null 2>&1 && [ -f "$REALCHART/values.yaml" ]; then
   if awk -F'\t' '($2=="render"||$2=="publicRef")&&$3=="mirrored-per-upstream"' "$OUT4/findings.tsv" | grep -q .; then
     no "mirrored-per-upstream unexpectedly flagged against current chart"
   else ok "mirrored-per-upstream renders clean against current chart"; fi
+  # internal-openai configures the gateway, so it must render at full fidelity
+  # (gateway NOT force-disabled) and therefore not be flagged.
+  if awk -F'\t' '($2=="render"||$2=="publicRef")&&$3=="internal-openai"' "$OUT4/findings.tsv" | grep -q .; then
+    no "internal-openai unexpectedly flagged (gateway render fidelity lost)"
+  else ok "internal-openai renders clean with gateway enabled"; fi
 else
   bash "$DET" --chart "$FIX/chart-compat" --out "$OUT4" >/dev/null 2>&1
   grep -q $'\trenderSkipped\t' "$OUT4/findings.tsv" && ok "render check skips cleanly without chart/helm" || no "no renderSkipped note"

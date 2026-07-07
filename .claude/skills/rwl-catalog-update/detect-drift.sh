@@ -104,14 +104,20 @@ check_render() {
     emit_finding auto renderSkipped "" "helm or chart values.yaml unavailable — render checks skipped" "$CHART" "" ""
     return 0
   fi
-  local opt tmp ov
+  local opt tmp ov llm_off
   for opt in $(list_options); do
     tmp="$(mktemp -d)"
     ov="$(ruby "$SKILL_DIR/gen-overlays.rb" "$CATALOG" "$tmp" "$opt")"
     [ -n "$ov" ] || { rm -rf "$tmp"; continue; }
-    if helm template rw "$CHART" -f "$CHART/values.yaml" -f "$tmp/$ov" \
+    # The chart fail-fasts when llmGateway.deploy=true and models[] is empty — the
+    # DEFAULT — so options that don't configure the gateway can't render in isolation.
+    # Disable the gateway for those. Do NOT disable it for an overlay that configures
+    # llmGateway itself (e.g. internal-openai): --set would override the overlay and
+    # blind this check to llmGateway.*/llmBootstrap drift, the exact surface it must cover.
+    llm_off="--set llmGateway.deploy=false"
+    grep -q '^llmGateway:' "$tmp/$ov" && llm_off=""
+    if helm template rw "$CHART" -f "$CHART/values.yaml" -f "$tmp/$ov" $llm_off \
          --set neo4j.disableLookups=true --set qdrant.disableLookups=true \
-         --set llmGateway.deploy=false \
          > "$tmp/render.yaml" 2> "$tmp/err"; then
       # The public-ref invariant applies ONLY to the registry overlay — it is the
       # one that mirrors images. Every other overlay legitimately inherits the
