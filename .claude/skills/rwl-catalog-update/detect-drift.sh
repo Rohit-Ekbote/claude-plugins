@@ -59,5 +59,38 @@ check_validators() {
   done
 }
 
+# Read catalog pinnedTags via ruby (neo4j/vault/bciBaseHelmTest -> version string).
+catalog_pinned() {
+  ruby -ryaml -e '
+    c=YAML.load_file(ARGV[0])
+    c["axes"].each{|a| (a["options"]||[]).each{|o|
+      n=((o["emits"]||{})["x-airgap-pinned-tags-notice"]||{})["pinnedTags"]
+      next unless n
+      n.each{|k,v| puts "#{k}\t#{v}"}
+    }}' "$CATALOG" | sort -u
+}
+
+check_tags() {
+  local ex="$CHART/values-example-airgap-jcr.yaml"; [ -f "$ex" ] || return 0
+  # chart tags for the three pinned images, parsed from the example.
+  local c_neo4j c_vault c_bci
+  c_neo4j="$(grep -oE 'library/neo4j:[^"[:space:]]+' "$ex" | head -1 | sed 's#.*:##')"
+  c_vault="$(awk '/hashicorp\/vault/{f=1} f&&/tag:/{gsub(/[",]/,"",$2);print $2;exit}' "$ex")"
+  c_bci="$(grep -oE 'bci/bci-base:[^"[:space:]]+' "$ex" | head -1 | sed 's#.*:##')"
+  catalog_pinned | while IFS="$(printf '\t')" read -r name ver; do
+    local chart_ver=""
+    case "$name" in
+      neo4j) chart_ver="$c_neo4j" ;;
+      vault) chart_ver="$c_vault" ;;
+      bciBaseHelmTest) chart_ver="$c_bci" ;;
+    esac
+    [ -n "$chart_ver" ] || continue
+    if [ "$chart_ver" != "$ver" ]; then
+      emit_finding auto tag "$name" "pinned $name tag $ver != chart example $chart_ver" "$ex" "$ver" "$chart_ver"
+    fi
+  done
+}
+
 check_chartcompat
 check_validators
+check_tags

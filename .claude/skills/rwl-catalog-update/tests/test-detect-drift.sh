@@ -38,4 +38,17 @@ if grep -q $'\tvalidator\t.*workspaceBootstrap' "$OUT2/findings.tsv"; then ok "n
 grep -q $'\tvalidator\t.*objectStorage' "$OUT2/findings.tsv" && no "baseline validator wrongly flagged" || ok "baseline validators not re-flagged"
 rm -rf "$OUT2"
 
+echo "== tag drift: neo4j bumped in chart example is flagged auto-fixable =="
+OUT3="$(mktemp -d)"; CH3="$OUT3/chart"; mkdir -p "$CH3"
+printf 'apiVersion: v2\nname: runwhen-platform\nversion: 0.2.54\n' > "$CH3/Chart.yaml"
+cp "$FIX/example-bumped-tag.yaml" "$CH3/values-example-airgap-jcr.yaml"
+bash "$DET" --chart "$CH3" --out "$OUT3" >/dev/null 2>&1
+row="$(field tag "$OUT3/findings.tsv")"
+echo "$row" | grep -q "neo4j" && ok "neo4j tag drift detected" || no "neo4j tag drift missing"
+echo "$row" | grep -q "5.26.99" && ok "records chart tag 5.26.99" || no "chart tag not recorded"
+echo "$row" | grep -q "^auto" && ok "tag drift is auto-fixable" || no "wrong bucket for tag"
+# vault unchanged (1.21.2 == catalog) must NOT be flagged
+awk -F'\t' '$2=="tag"&&$3=="vault"' "$OUT3/findings.tsv" | grep -q . && no "unchanged vault flagged" || ok "unchanged vault not flagged"
+rm -rf "$OUT3"
+
 echo ""; echo "detect-drift: $PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]
