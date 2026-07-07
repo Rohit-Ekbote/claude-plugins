@@ -76,7 +76,7 @@ check_tags() {
   local c_neo4j c_vault c_bci
   c_neo4j="$(grep -oE 'library/neo4j:[^"[:space:]]+' "$ex" | head -1 | sed 's#.*:##')"
   c_vault="$(awk '/hashicorp\/vault/{f=1} f&&/tag:/{gsub(/[",]/,"",$2);print $2;exit}' "$ex")"
-  c_bci="$(grep -oE 'bci/bci-base:[^"[:space:]]+' "$ex" | head -1 | sed 's#.*:##')"
+  c_bci="$(grep -v '^[[:space:]]*#' "$CHART/values.yaml" 2>/dev/null | grep -oE 'bci/bci-base:[^"[:space:]]+' | head -1 | sed 's#.*:##')"
   catalog_pinned | while IFS="$(printf '\t')" read -r name ver; do
     local chart_ver=""
     case "$name" in

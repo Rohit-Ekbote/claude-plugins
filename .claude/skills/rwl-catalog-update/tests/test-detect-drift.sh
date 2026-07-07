@@ -80,4 +80,30 @@ ruby -rjson -e 'j=JSON.parse(File.read(ARGV[0])); abort unless j.key?("autoFixab
 grep -q "Needs decision" "$OUT5/drift-report.md" && ok "md has needs-decision section" || no "md missing section"
 rm -rf "$OUT5"
 
+echo "== tag drift: bci-base bumped in chart values.yaml is flagged =="
+OUTB="$(mktemp -d)"; CHB="$OUTB/chart"; mkdir -p "$CHB"
+printf 'apiVersion: v2\nname: runwhen-platform\nversion: 0.2.54\n' > "$CHB/Chart.yaml"
+cat > "$CHB/values-example-airgap-jcr.yaml" <<'YML'
+neo4j:
+  image:
+    customImage: "h/docker-dockerhub/library/neo4j:5.26.0"
+vault:
+  server:
+    image:
+      repository: "h/docker-dockerhub/hashicorp/vault"
+      tag: "1.21.2"
+YML
+cat > "$CHB/values.yaml" <<'YML'
+qdrant:
+  chartTests:
+    dbInteraction:
+      image: registry.suse.com/bci/bci-base:15.99
+YML
+bash "$DET" --chart "$CHB" --out "$OUTB" >/dev/null 2>&1
+brow="$(awk -F'\t' '$2=="tag"&&$3=="bciBaseHelmTest"' "$OUTB/findings.tsv")"
+[ -n "$brow" ] && ok "bci-base tag drift detected from values.yaml" || no "bci-base drift missing"
+echo "$brow" | grep -q "15.99" && ok "records chart bci tag 15.99" || no "chart bci tag not recorded"
+awk -F'\t' '$2=="tag"&&($3=="neo4j"||$3=="vault")' "$OUTB/findings.tsv" | grep -q . && no "unchanged neo4j/vault flagged" || ok "unchanged neo4j/vault not flagged"
+rm -rf "$OUTB"
+
 echo ""; echo "detect-drift: $PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]
