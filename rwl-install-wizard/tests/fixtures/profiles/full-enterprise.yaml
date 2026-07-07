@@ -5,7 +5,7 @@ answers:
   networking:
     option: non-rfc1918
   registry-routing:
-    option: jfrog-per-upstream
+    option: mirrored-per-upstream
     registryHost: jcr.example.com
     pullSecretName: jcr-pull-secret
   security-posture:

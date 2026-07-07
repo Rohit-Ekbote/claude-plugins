@@ -1,0 +1,58 @@
+# Expected values-cluster.yaml for the airgap profile (cluster-shape + LLM).
+# MISSED-5: llmBootstrap seeds PAPI's llm_providers/llm_models from the same
+#   model_names the gateway serves (without it the LLM stack is inert).
+# MISSED-8: each model carries model_info.mode (chat/embedding).
+global:
+  domain: airgap.example.com
+ingress:
+  enabled: true
+  className: ingress-nginx
+  allowSnippetAnnotations: true
+  tls:
+    enabled: true
+    existingSecret: ''
+    certManager:
+      enabled: true
+      clusterIssuer: letsencrypt-prod
+llmGateway:
+  deploy: true
+  providersExistingSecret: rw-vendor-llm
+  models:
+    - model_name: customer-chat
+      litellm_params:
+        model: openai/gpt-4o
+        api_base: https://llm.internal/v1
+        api_key: os.environ/LLM_API_KEY
+      model_info:
+        mode: chat
+    - model_name: customer-bg
+      litellm_params:
+        model: openai/gpt-4o-mini
+        api_base: https://llm.internal/v1
+        api_key: os.environ/LLM_API_KEY
+      model_info:
+        mode: chat
+    - model_name: customer-embedding
+      litellm_params:
+        model: openai/text-embedding-3-small
+        api_base: https://llm.internal/v1
+        api_key: os.environ/LLM_API_KEY
+      model_info:
+        mode: embedding
+llmBootstrap:
+  enabled: true
+  staffUser:
+    email: default-sa@runwhen.com
+  provider:
+    name: customer-litellm
+  models:
+    chat:
+      name: customer-chat
+      maxTokens: 0
+    bg:
+      name: customer-bg
+      maxTokens: 0
+    embedding:
+      name: customer-embedding
+      maxTokens: 0
+      dimension: 1536

@@ -131,110 +131,29 @@ axes:
         guide_sections: [registry-connected, chart-version, helm-install-command]
         known_issues: []
 
-      - id: flat-mirror
-        label: "Flat mirror — single mirror host fronts all upstreams (Harbor project, ECR pull-through, Distribution mirror)"
+      # NOTE (v0.1.3, MISSED-1): the former `flat-mirror` option (top-level
+      # `registryOverride`) was REMOVED. The chart's `runwhen.image` /
+      # `runwhen.postgresql.spilo.image` helpers apply registryOverride FIRST
+      # (`$regOverride | default .service.registry | default .global.registry`),
+      # so it collapses every image to `<mirror>/<repository>` — dropping the
+      # source path AND silently discarding per-subchart `image.registry`
+      # overrides — while the image manifest pushes to `<mirror>/<source-path>`.
+      # Overlay and manifest then disagree → ImagePullBackOff. The real air-gap
+      # install (infra-flux .../airgap/runwhen-platform/helmrelease.yaml) uses the
+      # per-upstream, path-preserving model below and NEVER sets registryOverride.
+      # See the chart's own `runwhen.image` doc block: "For COMPLEX registry
+      # layouts ... DO NOT set registryOverride."
+      - id: mirrored-per-upstream
+        label: "Air-gap mirror — per-upstream repos, path-preserving (JFrog/Artifactory/JCR, Harbor proxy projects, ECR pull-through). RECOMMENDED for air-gap."
         overlay: values-registry.yaml
         params:
-          - { id: registryHost, prompt: "Mirror registry host + path prefix (e.g. harbor.corp.example/runwhen or jcr.example.com/runwhen)" }
-          - { id: pullSecretName, prompt: "Name of the pre-created Kubernetes image pull Secret (e.g. harbor-pull-secret)" }
-          - { id: helmMirrorUrl, prompt: "Helm CHART repo base URL for the five subchart aliases — this is a Helm chart repository, NOT the image mirror above (Harbor exposes charts under /chartrepo/<project>, a different path than its image project). Leave blank if you mirror only images (charts registered manually)." }
-        emits:
-          # N1: catalog `emits:` YAML comments are DROPPED when the wizard parses +
-          # deep-merges the fragment, so a verify warning cannot ride on a comment.
-          # It is injected as a real YAML value instead — `x-airgap-pinned-tags-notice`
-          # is a top-level key Helm ignores (same `x-` convention the chart's own
-          # values-example-airgap-jcr.yaml uses for `x-jcr-anchors`), so it survives
-          # GENERATE and appears verbatim at the top of the generated overlay.
-          # The pinnedTags values are the single source of truth shared with
-          # data/guide-sections/airgap-image-manifest.md (the regression guard
-          # asserts they match — that is what stops overlay/manifest drift).
-          x-airgap-pinned-tags-notice:
-            warning: >-
-              PINNED subchart image tags in this overlay target chart ~0.2.x. VERIFY
-              each against your Chart.lock (run `helm dependency update`, then read
-              Chart.lock) and the air-gap image manifest in your USER-GUIDE before
-              installing — the mirror must hold the exact tag your chart resolves, or
-              the image pull fails. These full-value overrides beat the chart's own
-              resolved subchart pins.
-            pinnedTags:
-              neo4j: "5.26.0"
-              vault: "1.21.2"
-              bciBaseHelmTest: "15.7"
-          # registryOverride replaces the registry portion of every FIRST-PARTY
-          # and chart-utility image (backend-services, mcp-server, cc-catalog,
-          # llm-gateway, cortex-tenant, busybox, db-init, vault-client). Per the
-          # chart's own values.yaml, it CANNOT reach subchart-emitted images —
-          # those are overridden per-subchart below so nothing pulls from a
-          # public registry in an air-gapped cluster.
-          registryOverride: "<REGISTRY_HOST>"
-          images:
-            pullSecrets:
-              - name: "<PULL_SECRET_NAME>"
-          global:
-            imagePullSecrets:
-              - name: "<PULL_SECRET_NAME>"
-          # --- Subchart / chart-native images registryOverride does not reach ---
-          # Repository paths are preserved under the flat mirror host; seed the
-          # mirror from `fetch-chart-images.sh` output so refs stay self-consistent.
-          postgresql:
-            spilo:                       # ghcr.io/zalando/spilo-17 (Postgres HA)
-              image:
-                registry: "<REGISTRY_HOST>/zalando"
-            pgbouncer:                   # docker.io/edoburu/pgbouncer
-              image:
-                registry: "<REGISTRY_HOST>"
-          redis:                         # docker.io/bitnamilegacy/redis (bitnami subchart)
-            image:
-              registry: "<REGISTRY_HOST>"
-              repository: "bitnamilegacy/redis"
-          neo4j:                         # docker.io/library/neo4j (neo4j subchart; full-path customImage)
-            image:
-              customImage: "<REGISTRY_HOST>/library/neo4j:5.26.0"   # PINNED-TAG 5.26.0 — see x-airgap-pinned-tags-notice
-              imagePullSecrets:
-                - "<PULL_SECRET_NAME>"
-          vault:                         # docker.io/hashicorp/vault (hashicorp subchart server + chart-native jobs)
-            server:
-              image:
-                repository: "<REGISTRY_HOST>/hashicorp/vault"
-                tag: "1.21.2"            # PINNED-TAG 1.21.2 — see x-airgap-pinned-tags-notice
-            autoUnseal:
-              image:
-                registry: "<REGISTRY_HOST>"
-            backup:
-              image:
-                registry: "<REGISTRY_HOST>"
-          qdrant:                        # docker.io/qdrant/qdrant (qdrant subchart; full-path repository)
-            image:
-              repository: "<REGISTRY_HOST>/qdrant/qdrant"
-            imagePullSecrets:
-              - name: "<PULL_SECRET_NAME>"
-            chartTests:                  # registry.suse.com/bci/bci-base — helm-test-only pod
-              dbInteraction:
-                image: "<REGISTRY_HOST>/bci/bci-base:15.7"   # PINNED-TAG 15.7 — see x-airgap-pinned-tags-notice
-          metricstore:                   # docker.io/grafana/mimir
-            image:
-              registry: "<REGISTRY_HOST>"
-          seaweedfs:                     # docker.io/chrislusf/seaweedfs (object storage)
-            global:
-              seaweedfs:
-                image:
-                  name: "<REGISTRY_HOST>/chrislusf/seaweedfs"
-            image:
-              repository: "<REGISTRY_HOST>/chrislusf/seaweedfs"
-        guide_sections: [registry-flat-mirror, subchart-alias-mirroring, airgap-image-manifest, chart-version, secret-preflight-checklist, helm-install-command]
-        known_issues: [hardcoded-image-refs, thin-chart-subchart-aliases, embedder-airgap-hang, seaweedfs-image-chrislusf]
-
-      - id: jfrog-per-upstream
-        label: "JFrog per-upstream — one virtual repo per upstream registry (Artifactory / JCR)"
-        overlay: values-registry.yaml
-        params:
-          - { id: registryHost, prompt: "JFrog / JCR hostname (e.g. jcr.example.com or artifactory.corp.example)" }
+          - { id: registryHost, prompt: "Mirror registry host (e.g. artifactory.corp.example or jcr.example.com). The per-upstream repo segments below (docker-dockerhub, docker-ghcr, docker-runwhen-self-hosted, docker-suse) are the remote-repo names you created on the mirror — rename them here if your mirror uses different ones." }
           - { id: pullSecretName, prompt: "Name of the pre-created Kubernetes image pull Secret (e.g. jcr-pull-secret)" }
-          - { id: helmMirrorUrl, prompt: "Helm CHART repo base URL for the five subchart aliases — a Helm chart repository, NOT the JFrog image path above (Artifactory serves charts from a helm-type repo, e.g. https://jcr.example.com/artifactory/helm-virtual, distinct from the docker-* image remotes). Leave blank if you mirror only images (charts registered manually)." }
+          - { id: helmMirrorUrl, prompt: "Helm CHART repo base URL for the five subchart aliases — a Helm chart repository, NOT the image path above (Artifactory serves charts from a helm-type repo, e.g. https://jcr.example.com/artifactory/helm-virtual; Harbor under /chartrepo/<project> — both distinct from the docker-* image remotes). Leave blank if you mirror only images (charts registered manually)." }
         emits:
-          # N1: see the flat-mirror option — this warning is injected as a YAML value
-          # (not a comment, which parse/merge drops) so it survives GENERATE. pinnedTags
-          # are the single source of truth shared with airgap-image-manifest.md.
+          # N1: this warning is injected as a YAML value (not a comment, which
+          # parse/merge drops) so it survives GENERATE. pinnedTags are the single
+          # source of truth shared with airgap-image-manifest.md (guard asserts match).
           x-airgap-pinned-tags-notice:
             warning: >-
               PINNED subchart image tags in this overlay target chart ~0.2.x. VERIFY
@@ -247,6 +166,9 @@ axes:
               neo4j: "5.26.0"
               vault: "1.21.2"
               bciBaseHelmTest: "15.7"
+          # Per-upstream, path-preserving. NO registryOverride — each image keeps
+          # its source path under the matching per-upstream remote, so the rendered
+          # ref equals the manifest push target (airgap-image-manifest.md).
           global:
             imagePullSecrets:
               - name: "<PULL_SECRET_NAME>"
@@ -270,6 +192,47 @@ axes:
           runnerMetricProxy:
             image:
               registry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib"
+          # MISSED-7: cc-catalog-svc must auth to the mirror to LIST codecollection
+          # tags. Reuse the kubelet image pull Secret (kubernetes.io/dockerconfigjson);
+          # chart projects it in and exports CC_CATALOG_DOCKERCONFIGJSON_FILE.
+          ccCatalog:
+            auth:
+              dockerconfigjsonSecret: "<PULL_SECRET_NAME>"
+            # The chart-default cc-catalog sources point image_registry at public
+            # ghcr.io/runwhen-contrib — in air-gap the runner then can't pull task
+            # images. Repoint each at the mirror (git_url stays upstream, matching
+            # the real air-gap reference; mirror git separately if egress is denied).
+            config:
+              sources:
+                - name: mirror-remote-runwhen
+                  type: oci
+                  auth:
+                    dockerconfigjson_env: CC_CATALOG_DOCKERCONFIGJSON_FILE
+                  codecollections:
+                    - slug: rw-cli-codecollection
+                      name: RunWhen CLI CodeCollection
+                      git_url: https://github.com/runwhen-contrib/rw-cli-codecollection
+                      image_registry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib/rw-cli-codecollection"
+                    - slug: rw-public-codecollection
+                      name: RunWhen Public CodeCollection
+                      git_url: https://github.com/runwhen-contrib/rw-public-codecollection
+                      image_registry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib/rw-public-codecollection"
+                    - slug: rw-generic-codecollection
+                      name: RunWhen Generic CodeCollection
+                      git_url: https://github.com/runwhen-contrib/rw-generic-codecollection
+                      image_registry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib/rw-generic-codecollection"
+                    - slug: rw-workspace-utils
+                      name: RunWhen Workspace Utilities CodeCollection
+                      git_url: https://github.com/runwhen-contrib/rw-workspace-utils
+                      image_registry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib/rw-workspace-utils"
+                    - slug: aws-c7n-codecollection
+                      name: AWS CloudCustodian CodeCollection
+                      git_url: https://github.com/runwhen-contrib/aws-c7n-codecollection
+                      image_registry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib/aws-c7n-codecollection"
+                    - slug: azure-c7n-codecollection
+                      name: Azure CloudCustodian CodeCollection
+                      git_url: https://github.com/runwhen-contrib/azure-c7n-codecollection
+                      image_registry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib/azure-c7n-codecollection"
           postgresql:
             spilo:
               image:
@@ -318,6 +281,46 @@ axes:
                   name: "<REGISTRY_HOST>/docker-dockerhub/chrislusf/seaweedfs"
             image:
               repository: "<REGISTRY_HOST>/docker-dockerhub/chrislusf/seaweedfs"
+          # MISSED-6: codecollection images default to ghcr.io/runwhen-contrib.
+          # Repoint every entry at the mirror's docker-ghcr remote so the runner
+          # pulls task images from the mirror, not public ghcr.
+          codeCollections:
+            - name: runwhen-collection
+              repoUrl: https://github.com/runwhen-contrib/rw-public-codecollection.git
+              branch: main
+              watchAllBranches: true
+              imageRegistry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib"
+              imageRepo: rw-public-codecollection
+            - name: runwhen-c7n-collection
+              repoUrl: https://github.com/runwhen-contrib/azure-c7n-codecollection.git
+              branch: main
+              watchAllBranches: true
+              imageRegistry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib"
+              imageRepo: azure-c7n-codecollection
+            - name: aws-c7n-cc
+              repoUrl: https://github.com/runwhen-contrib/aws-c7n-codecollection.git
+              branch: main
+              watchAllBranches: true
+              imageRegistry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib"
+              imageRepo: aws-c7n-codecollection
+            - name: runwhen-cli-collection
+              repoUrl: https://github.com/runwhen-contrib/rw-cli-codecollection.git
+              branch: main
+              watchAllBranches: true
+              imageRegistry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib"
+              imageRepo: rw-cli-codecollection
+            - name: runwhen-generic-collection
+              repoUrl: https://github.com/runwhen-contrib/rw-generic-codecollection.git
+              branch: main
+              watchAllBranches: true
+              imageRegistry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib"
+              imageRepo: rw-generic-codecollection
+            - name: rw-workspace-utils
+              repoUrl: https://github.com/runwhen-contrib/rw-workspace-utils.git
+              branch: main
+              watchAllBranches: true
+              imageRegistry: "<REGISTRY_HOST>/docker-ghcr/runwhen-contrib"
+              imageRepo: rw-workspace-utils
         guide_sections: [registry-jfrog-per-upstream, subchart-alias-mirroring, airgap-image-manifest, chart-version, secret-preflight-checklist, helm-install-command]
         known_issues: [hardcoded-image-refs, embedder-airgap-hang, thin-chart-subchart-aliases, seaweedfs-image-chrislusf]
 
@@ -328,7 +331,7 @@ axes:
       - { id: storageClass, prompt: "StorageClass name for durable volumes (e.g. standard-rwo, gp3, managed-csi)" }
     options:
       - id: pvc
-        label: "Durable PVCs — all components on PVCs (default; cluster must have an RWO StorageClass)"
+        label: "Durable PVCs — every stateful component on PVCs (cluster must have an RWO StorageClass)"
         overlay: values-storage.yaml
         emits:
           seaweedfs:
@@ -349,10 +352,42 @@ axes:
                 size: 5Gi
           metricstore:
             persistence:
-              storageClass: "<STORAGE_CLASS>"
+              # MISSED-3: chart key is storageClassName (NOT storageClass — that
+              # was silently ignored). kind: pvc so the class is actually used.
+              kind: pvc
+              storageClassName: "<STORAGE_CLASS>"
           qdrant:
             persistence:
               storageClassName: "<STORAGE_CLASS>"
+          # MISSED-4: the label promises "every stateful component on PVCs", so
+          # wire the chosen StorageClass into Spilo/Vault/Neo4j/Redis too — each
+          # uses a DIFFERENT key (verified against the chart + subchart schemas).
+          postgresql:
+            spilo:
+              persistence:
+                kind: pvc
+                storageClassName: "<STORAGE_CLASS>"
+          vault:
+            server:
+              dataStorage:
+                enabled: true
+                storageClass: "<STORAGE_CLASS>"
+          neo4j:
+            volumes:
+              data:
+                # defaultStorageClass mode CANNOT set a class name (chart fails);
+                # dynamic mode is the one that pins a named StorageClass.
+                mode: dynamic
+                dynamic:
+                  storageClassName: "<STORAGE_CLASS>"
+                  accessModes: ["ReadWriteOnce"]
+                  requests:
+                    storage: 5Gi
+          redis:
+            master:
+              persistence:
+                enabled: true
+                storageClass: "<STORAGE_CLASS>"
         guide_sections: [storage-pvc, storageclass]
         known_issues: [postgres-storage-kind]
 
@@ -465,6 +500,13 @@ axes:
   - id: object-storage
     title: Object storage backend
     question: "Which S3 backend should the platform use for workspace uploads, Mimir blocks, and backup storage?"
+    # releaseName is collected here because bundled SeaweedFS needs it (MISSED-2):
+    # the seaweedfs subchart cannot see the parent Helm release name, so
+    # `seaweedfs.s3.existingConfigSecret` must be pinned to `<release>-seaweedfs-identities`
+    # or `runwhen.objectStorage.validate` fail-fasts at template time. It is also
+    # the `<RELEASE>` used in the helm install command and the derived Service names.
+    params:
+      - { id: releaseName, prompt: "Helm release name you will install under (e.g. rw, rw-airgap). Used as `helm install <RELEASE>` AND to pin the SeaweedFS identities Secret name — must match exactly." }
     options:
       - id: seaweedfs
         label: "Bundled SeaweedFS — Apache 2.0, namespace-scoped, no CRDs (default)"
@@ -474,6 +516,11 @@ axes:
             kind: seaweedfs
           seaweedfs:
             deploy: true
+            s3:
+              # MISSED-2: chart's runwhen.objectStorage.validate requires this to
+              # equal `<release>-seaweedfs-identities` (the identities Secret the
+              # chart renders). Wrong/blank → template fail-fast.
+              existingConfigSecret: "<RELEASE_NAME>-seaweedfs-identities"
         guide_sections: [object-storage-seaweedfs]
         known_issues: [seaweedfs-s3-access-denied]
 
@@ -588,6 +635,9 @@ axes:
           - { id: embeddingModel, prompt: "Upstream model identifier for embedding (e.g. openai/text-embedding-3-small)" }
           - { id: llmApiKeySecret, prompt: "Name of the pre-created Kubernetes Secret holding the upstream API key (existingSecret name — not the key value)" }
           - { id: llmApiKeyEnv, prompt: "Env var name the LiteLLM key is exposed as (from the providers Secret), e.g. LLM_API_KEY" }
+          - { id: llmStaffEmail, prompt: "Staff/service-account email that OWNS the seeded LLM provider in PAPI (e.g. default-sa@runwhen.com). llmBootstrap seeds PAPI's llm_providers under this identity." }
+          - { id: llmProviderName, prompt: "A stable name for the PAPI llm_providers row (e.g. customer-litellm). Free label; keep it constant across upgrades." }
+          - { id: embeddingDimension, prompt: "Vector dimension your embedding model emits (e.g. 1536 for text-embedding-3-small; 384 for bge-small). Must match the model — a wrong value surfaces as pgvector insert errors." }
         emits:
           llmGateway:
             deploy: true
@@ -598,16 +648,43 @@ axes:
                   model: "<CHAT_MODEL>"
                   api_base: "<LLM_BASE_URL>"
                   api_key: "os.environ/<LLM_API_KEY_ENV>"
+                model_info:            # MISSED-8: role type; chat + bg are both chat-class
+                  mode: chat
               - model_name: "<BG_MODEL_NAME>"
                 litellm_params:
                   model: "<BG_MODEL>"
                   api_base: "<LLM_BASE_URL>"
                   api_key: "os.environ/<LLM_API_KEY_ENV>"
+                model_info:
+                  mode: chat
               - model_name: "<EMBEDDING_MODEL_NAME>"
                 litellm_params:
                   model: "<EMBEDDING_MODEL>"
                   api_base: "<LLM_BASE_URL>"
                   api_key: "os.environ/<LLM_API_KEY_ENV>"
+                model_info:
+                  mode: embedding
+          # MISSED-5: without llmBootstrap the gateway serves models but PAPI's
+          # llm_providers / llm_models rows are never seeded, so the platform's LLM
+          # features stay inert. Seed them from the same model_names above. The
+          # names MUST match llmGateway.models[].model_name exactly.
+          llmBootstrap:
+            enabled: true
+            staffUser:
+              email: "<LLM_STAFF_EMAIL>"
+            provider:
+              name: "<LLM_PROVIDER_NAME>"
+            models:
+              chat:
+                name: "<CHAT_MODEL_NAME>"
+                maxTokens: 0
+              bg:
+                name: "<BG_MODEL_NAME>"
+                maxTokens: 0
+              embedding:
+                name: "<EMBEDDING_MODEL_NAME>"
+                maxTokens: 0
+                dimension: <EMBEDDING_DIMENSION>
         guide_sections: [llm-endpoint, secret-preflight-checklist]
         known_issues: [llm-bootstrap-egress, tiktoken-dns-benign, litellm-configmap-placeholder, embedder-airgap-hang]
 

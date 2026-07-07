@@ -2,3 +2,6 @@
 .worktrees/
 .claude/rwenv
 .claude/settings.local.json
+
+# rwl-catalog-update runtime drift reports
+.rwl-catalog-drift/

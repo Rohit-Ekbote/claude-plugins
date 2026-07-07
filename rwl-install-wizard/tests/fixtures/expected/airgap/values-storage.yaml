@@ -1,0 +1,59 @@
+# Expected values-storage.yaml for the airgap profile (pvc + seaweedfs).
+# MISSED-2: seaweedfs.s3.existingConfigSecret pinned to <release>-seaweedfs-identities
+#   (release rw-airgap) — required by runwhen.objectStorage.validate.
+# MISSED-3: metricstore uses persistence.storageClassName (NOT storageClass).
+# MISSED-4: every stateful component (spilo/vault/neo4j/redis/qdrant/seaweedfs)
+#   gets the chosen StorageClass — each via its own distinct key.
+seaweedfs:
+  master:
+    data:
+      storageClass: standard-rwo
+  volume:
+    dataDirs:
+      - name: data1
+        type: persistentVolumeClaim
+        size: 20Gi
+        storageClass: standard-rwo
+        maxVolumes: 60
+  filer:
+    data:
+      type: persistentVolumeClaim
+      storageClass: standard-rwo
+      size: 5Gi
+  deploy: true
+  s3:
+    existingConfigSecret: rw-airgap-seaweedfs-identities
+metricstore:
+  persistence:
+    kind: pvc
+    storageClassName: standard-rwo
+qdrant:
+  persistence:
+    storageClassName: standard-rwo
+postgresql:
+  spilo:
+    persistence:
+      kind: pvc
+      storageClassName: standard-rwo
+vault:
+  server:
+    dataStorage:
+      enabled: true
+      storageClass: standard-rwo
+neo4j:
+  volumes:
+    data:
+      mode: dynamic
+      dynamic:
+        storageClassName: standard-rwo
+        accessModes:
+          - ReadWriteOnce
+        requests:
+          storage: 5Gi
+redis:
+  master:
+    persistence:
+      enabled: true
+      storageClass: standard-rwo
+objectStorage:
+  kind: seaweedfs
