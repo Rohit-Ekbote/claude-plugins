@@ -47,4 +47,17 @@ check_chartcompat() {
   fi
 }
 
+check_validators() {
+  local helpers="$CHART/templates/_helpers.tpl"; [ -f "$helpers" ] || return 0
+  local baseline="$SKILL_DIR/validators.baseline"
+  grep -oE 'define "runwhen\.[a-zA-Z.]*validate"' "$helpers" \
+    | sed -E 's/define "(.*)"/\1/' | sort -u > "$OUT/validators.chart"
+  # names in chart but not in baseline = newly added
+  comm -13 <(sort -u "$baseline") "$OUT/validators.chart" | while IFS= read -r v; do
+    [ -n "$v" ] || continue
+    emit_finding decide validator "" "new fail-fast validator '$v' — may require a new question/param" "$helpers" "" "$v"
+  done
+}
+
 check_chartcompat
+check_validators

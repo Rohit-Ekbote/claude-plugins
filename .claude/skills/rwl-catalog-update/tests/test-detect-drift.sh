@@ -29,4 +29,13 @@ row="$(field chartCompat "$OUTLO/findings.tsv")"
 echo "$row" | grep -q "^decide" && ok "below-floor 0.1.5 flagged decide" || no "below-floor not flagged"
 rm -rf "$OUTLO"
 
+echo "== validator inventory: a new validate helper is flagged =="
+OUT2="$(mktemp -d)"; CH="$OUT2/chart"; mkdir -p "$CH/templates"
+printf 'apiVersion: v2\nname: runwhen-platform\nversion: 0.2.54\n' > "$CH/Chart.yaml"
+cp "$FIX/helpers-extra-validator.tpl" "$CH/templates/_helpers.tpl"
+bash "$DET" --chart "$CH" --out "$OUT2" >/dev/null 2>&1
+if grep -q $'\tvalidator\t.*workspaceBootstrap' "$OUT2/findings.tsv"; then ok "new validator workspaceBootstrap flagged"; else no "new validator not flagged"; fi
+grep -q $'\tvalidator\t.*objectStorage' "$OUT2/findings.tsv" && no "baseline validator wrongly flagged" || ok "baseline validators not re-flagged"
+rm -rf "$OUT2"
+
 echo ""; echo "detect-drift: $PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]
