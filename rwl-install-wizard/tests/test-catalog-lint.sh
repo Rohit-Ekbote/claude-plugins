@@ -90,6 +90,48 @@ bash "$LINT" "$TMPN/cat.yaml" "$TMPN/data" >/dev/null 2>&1
 assert_rc "$?" "1" "option without label is rejected"
 rm -rf "$TMPN"
 
+echo "== catalog-lint: malformed consumers: is rejected =="
+TMPC="$(mktemp -d)"; mkdir -p "$TMPC/data/guide-sections" "$TMPC/data/known-issues"
+cat > "$TMPC/cat.yaml" <<'YML'
+axes:
+  - id: demo
+    title: Demo
+    question: "Demo?"
+    options:
+      - id: on
+        label: "On"
+        overlay: values-cluster.yaml
+        params:
+          - { id: badp, prompt: "x", consumers: { equals: "VAULT_URL" } }
+        emits: { foo: bar }
+        guide_sections: []
+        known_issues: []
+YML
+bash "$LINT" "$TMPC/cat.yaml" "$TMPC/data" >/dev/null 2>&1
+assert_rc "$?" "1" "malformed consumers (equals not a list) is rejected"
+rm -rf "$TMPC"
+
+echo "== catalog-lint: well-formed consumers passes =="
+TMPD="$(mktemp -d)"; mkdir -p "$TMPD/data/guide-sections" "$TMPD/data/known-issues"
+cat > "$TMPD/cat.yaml" <<'YML'
+axes:
+  - id: demo
+    title: Demo
+    question: "Demo?"
+    options:
+      - id: on
+        label: "On"
+        overlay: values-cluster.yaml
+        params:
+          - { id: goodp, prompt: "x", consumers: { equals: [VAULT_URL], contains: [DATABASE_URL] } }
+        emits: { foo: bar }
+        guide_sections: []
+        known_issues: []
+YML
+bash "$LINT" "$TMPD/cat.yaml" "$TMPD/data" >/dev/null 2>&1
+assert_rc "$?" "0" "well-formed consumers passes"
+rm -rf "$TMPD"
+
 echo ""
 echo "catalog-lint: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
