@@ -138,3 +138,7 @@ check_chartcompat
 check_validators
 check_tags
 check_render
+ruby "$SKILL_DIR/assemble-report.rb" "$FINDINGS" "$OUT"
+A="$(awk -F'\t' '$1=="auto"' "$FINDINGS" | wc -l | tr -d ' ')"
+D="$(awk -F'\t' '$1=="decide"' "$FINDINGS" | wc -l | tr -d ' ')"
+echo "drift: $A auto-fixable, $D need decision -> $OUT/drift-report.md"

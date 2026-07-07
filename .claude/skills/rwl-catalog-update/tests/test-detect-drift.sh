@@ -71,4 +71,13 @@ else
 fi
 rm -rf "$OUT4"
 
+echo "== report assembly: md + json grouped by bucket =="
+OUT5="$(mktemp -d)"
+bash "$DET" --chart "$FIX/chart-compat" --out "$OUT5" >/dev/null 2>&1
+[ -f "$OUT5/drift-report.md" ] && ok "writes drift-report.md" || no "no drift-report.md"
+[ -f "$OUT5/drift-report.json" ] && ok "writes drift-report.json" || no "no drift-report.json"
+ruby -rjson -e 'j=JSON.parse(File.read(ARGV[0])); abort unless j.key?("autoFixable")&&j.key?("needsDecision")' "$OUT5/drift-report.json" && ok "json has both buckets" || no "json shape wrong"
+grep -q "Needs decision" "$OUT5/drift-report.md" && ok "md has needs-decision section" || no "md missing section"
+rm -rf "$OUT5"
+
 echo ""; echo "detect-drift: $PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]
