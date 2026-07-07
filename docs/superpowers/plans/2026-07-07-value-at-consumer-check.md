@@ -545,14 +545,19 @@ In `gen-overlays.rb`, after the block that writes the overlay (`File.write(...);
 Append to `.claude/skills/rwl-catalog-update/tests/test-detect-drift.sh` before the final summary:
 
 ```bash
-echo "== consumer check: no consumerMismatch against the current chart =="
+echo "== consumer check: only the KNOWN byo-datastores neo4j mismatch, nothing else =="
 REALCHART="${RWL_CHART_PATH:-/Users/rohitekbote/wd/code/github.com/runwhen/rwlight-helm/charts/runwhen-platform}"
 if command -v helm >/dev/null 2>&1 && [ -f "$REALCHART/values.yaml" ]; then
   OUTC="$(mktemp -d)"
   bash "$DET" --chart "$REALCHART" --out "$OUTC" >/dev/null 2>&1
-  if awk -F'\t' '$2=="consumerMismatch"' "$OUTC/findings.tsv" | grep -q .; then
-    no "unexpected consumerMismatch against current chart"
-  else ok "no consumerMismatch against current chart (inputs reach consumers)"; fi
+  # byo-datastores + external Neo4j is a KNOWN chart bug (agentfarm/usearch hardcode
+  # the bundled neo4j host) — see data/known-issues/neo4j-external-agentfarm-usearch.md.
+  # The detector is EXPECTED to flag exactly that option and no other.
+  if awk -F'\t' '$2=="consumerMismatch" && $3=="byo-datastores"' "$OUTC/findings.tsv" | grep -q .; then
+    ok "detector flags the known byo-datastores neo4j consumerMismatch"
+  else no "detector did not flag byo-datastores (consumer check not running?)"; fi
+  unexpected="$(awk -F'\t' '$2=="consumerMismatch" && $3!="byo-datastores"{print $3}' "$OUTC/findings.tsv" | sort -u | tr '\n' ' ')"
+  [ -z "$unexpected" ] && ok "no unexpected consumerMismatch" || no "unexpected consumerMismatch: $unexpected"
   rm -rf "$OUTC"
 else
   ok "SKIP consumer check (no chart/helm)"
