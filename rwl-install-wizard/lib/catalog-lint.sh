@@ -94,4 +94,28 @@ if ! awk '
     fail "one or more - id: blocks lack a label/title/question"
 fi
 
+# Check 6: consumers: metadata shape — equals/contains must be arrays of
+# non-empty string keys, and no other keys allowed under consumers.
+if ! ruby -ryaml -e '
+  cat = YAML.load_file(ARGV[0]); bad = []
+  walk = lambda do |pl|
+    (pl || []).each do |p|
+      next unless p.is_a?(Hash) && p["consumers"]
+      c = p["consumers"]
+      unless c.is_a?(Hash) && (c.keys - ["equals", "contains"]).empty?
+        bad << p["id"]; next
+      end
+      ["equals", "contains"].each do |k|
+        next unless c.key?(k)
+        ok = c[k].is_a?(Array) && !c[k].empty? && c[k].all? { |x| x.is_a?(String) && !x.strip.empty? }
+        bad << p["id"] unless ok
+      end
+    end
+  end
+  (cat["axes"] || []).each { |a| walk.call(a["params"]); (a["options"] || []).each { |o| walk.call(o["params"]) } }
+  abort("bad consumers: #{bad.uniq.join(", ")}") unless bad.empty?
+' "$CATALOG" 2>/dev/null; then
+    fail "malformed consumers: metadata (equals/contains must be non-empty arrays of key names)"
+fi
+
 exit "$problems"

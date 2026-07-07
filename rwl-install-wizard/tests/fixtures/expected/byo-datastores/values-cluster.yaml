@@ -1,4 +1,3 @@
-# subcharts: byo-datastores (pgHost=pg.example.com, pgPort=5432, pgDatabase=core, pgUsername=runwhen, redisHost=redis.example.com, redisPort=6379, neo4jUri=bolt://neo4j.example.com:7687, neo4jUsername=neo4j, vaultAddress=https://vault.example.com, qdrantUrl=http://qdrant.example.com:6333)
 postgresql:
   kind: external
   deploy: false
@@ -19,6 +18,12 @@ neo4j:
     username: neo4j
 vault:
   deploy: false
+  # MISSED-11: chart reads the external Vault URL in TWO shapes — flat
+  # vault.address / vault.runnerAddress (VAULT_URL / RUNNER_VAULT_URL) AND nested
+  # vault.external.* (csi/agentfarm/webhooks). Both point at the operator's Vault.
+  address: https://vault.example.com
+  runnerAddress: https://vault.example.com
+  authMountPoint: kubernetes
   external:
     address: https://vault.example.com
     authMountPoint: kubernetes

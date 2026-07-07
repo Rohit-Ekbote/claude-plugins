@@ -117,6 +117,10 @@ if command -v helm >/dev/null 2>&1 && [ -f "$CHART/Chart.yaml" ]; then
     ok "helm template succeeds (non-rw release; no validate fail-fast)"
     if grep -nE '(image|customImage): *"?('"$PUBLIC_HOSTS"')' "$TMP" >/dev/null; then
       no "rendered manifests contain a public image ref"; else ok "every rendered image ref is on the mirror"; fi
+    # value-at-consumer: airgap profile (only llmBaseUrl -> api_base applies; datastores are bundled)
+    if ruby "$PLUGIN_DIR/lib/check-consumers.rb" "$CATALOG" "$SCRIPT_DIR/fixtures/profiles/airgap.yaml" "$TMP" >/dev/null 2>&1; then
+      ok "airgap: every operator input reaches its consumer"
+    else no "airgap: an operator input did not reach its declared consumer"; fi
   else
     no "helm template FAILED: $(head -1 "$TMP.err")"
   fi
@@ -127,9 +131,34 @@ if command -v helm >/dev/null 2>&1 && [ -f "$CHART/Chart.yaml" ]; then
   # only plugin-emitted fixtures; NO --set.
   BYO="$(dirname "$AIRGAP")/byo-datastores/values-cluster.yaml"
   if helm template rw-airgap "$CHART" -f "$CHART/values.yaml" -f "$STO" -f "$CLU" -f "$BYO" >"$TMP" 2>"$TMP.err"; then
-    if grep -q 'vault.example.com' "$TMP"; then
-      ok "byo-datastores renders (external vault.external.address wired)"
-    else no "byo-datastores rendered but external vault address absent"; fi
+    # Assert the VALUE at each consumer, NOT mere presence. MISSED-11: the external
+    # address appeared on csi-secret-class while VAULT_URL/RUNNER_VAULT_URL silently
+    # resolved to https://vault.<domain> (the plugin set only vault.external.*, but the
+    # chart reads flat vault.address / vault.runnerAddress for those). A bare
+    # `grep vault.example.com` passed on the csi occurrence alone and hid it.
+    vok=1
+    grep -q 'VAULT_URL: "https://vault.example.com"' "$TMP" || vok=0
+    grep -q 'RUNNER_VAULT_URL: "https://vault.example.com"' "$TMP" || vok=0
+    grep -q 'vault\.airgap\.example\.com' "$TMP" && vok=0   # no domain-derived host may leak
+    [ "$vok" = 1 ] && ok "byo-datastores: VAULT_URL + RUNNER_VAULT_URL resolve to the external Vault" \
+                   || no "byo-datastores: a Vault URL does not resolve to the operator's external address"
+    cc_out="$(ruby "$PLUGIN_DIR/lib/check-consumers.rb" "$CATALOG" "$SCRIPT_DIR/fixtures/profiles/byo.yaml" "$TMP" 2>&1)"
+    if [ $? -eq 0 ]; then
+      ok "byo: every operator input (vault/pg/redis/neo4j/llm) reaches its consumer"
+    else
+      # KNOWN-ISSUE RED (data/known-issues/neo4j-external-agentfarm-usearch.md): with
+      # external Neo4j the chart hardcodes the bundled neo4j host into agentfarm/usearch
+      # NEO4J_URI/GRAPH_DB_URI, so those consumers never reflect the operator's neo4jUri.
+      # EXPECTED to fail until the rwlight-helm chart is fixed. Split known vs new so a
+      # SECOND consumer regression emits its OWN failure and moves the pass/fail tally —
+      # the known red must not mask a new one.
+      failed="$(printf '%s\n' "$cc_out" | awk '/FAIL:/{print $2}' | tr -d ':' | sort -u | grep -v '^$')"
+      if printf '%s\n' "$failed" | grep -qx 'neo4jUri'; then
+        no "byo: KNOWN neo4jUri consumer red (chart bug neo4j-external-agentfarm-usearch)"
+      fi
+      unexpected="$(printf '%s\n' "$failed" | grep -vx 'neo4jUri' | grep -v '^$' | tr '\n' ' ')"
+      [ -n "$unexpected" ] && no "byo: UNEXPECTED consumer regression (not the known issue): $unexpected"
+    fi
   else
     no "byo-datastores helm template FAILED: $(head -1 "$TMP.err")"
   fi

@@ -636,7 +636,7 @@ axes:
         label: "Internal OpenAI-compatible endpoint — wire a corporate or on-premises model gateway via LiteLLM proxy"
         overlay: values-cluster.yaml
         params:
-          - { id: llmBaseUrl, prompt: "LLM endpoint base URL (e.g. https://llm.internal.example/v1 — non-secret)" }
+          - { id: llmBaseUrl, prompt: "LLM endpoint base URL (e.g. https://llm.internal.example/v1 — non-secret)", consumers: { equals: [api_base] } }
           - { id: chatModelName, prompt: "LiteLLM model_name for chat (e.g. customer-chat — must be unique per model role)" }
           - { id: chatModel, prompt: "Upstream model identifier for chat (e.g. openai/gpt-4o or azure/my-gpt4o)" }
           - { id: bgModelName, prompt: "LiteLLM model_name for background/summarisation (e.g. customer-bg)" }
@@ -712,15 +712,15 @@ axes:
         label: "BYO external — connect to externally-managed datastores (disable bundled subcharts)"
         overlay: values-cluster.yaml
         params:
-          - { id: pgHost, prompt: "PostgreSQL external host (e.g. pg.example.com or Cloud SQL private IP)" }
+          - { id: pgHost, prompt: "PostgreSQL external host (e.g. pg.example.com or Cloud SQL private IP)", consumers: { contains: [DATABASE_URL] } }
           - { id: pgPort, prompt: "PostgreSQL port (default 5432)" }
           - { id: pgDatabase, prompt: "PostgreSQL database name (default core)" }
           - { id: pgUsername, prompt: "PostgreSQL username (e.g. runwhen)" }
-          - { id: redisHost, prompt: "Redis external host (e.g. redis.example.com or managed Redis endpoint)" }
+          - { id: redisHost, prompt: "Redis external host (e.g. redis.example.com or managed Redis endpoint)", consumers: { equals: [REDIS_HOST] } }
           - { id: redisPort, prompt: "Redis port (default 6379)" }
-          - { id: neo4jUri, prompt: "Neo4j Bolt URI (e.g. bolt://neo4j.example.com:7687 — NOT NFS-backed)" }
+          - { id: neo4jUri, prompt: "Neo4j Bolt URI (e.g. bolt://neo4j.example.com:7687 — NOT NFS-backed)", consumers: { equals: [NEO4J_URI, GRAPH_DB_URI] } }
           - { id: neo4jUsername, prompt: "Neo4j username (e.g. neo4j)" }
-          - { id: vaultAddress, prompt: "Vault HTTPS address (e.g. https://vault.example.com — must have runner-system KV mount + k8s auth pre-configured)" }
+          - { id: vaultAddress, prompt: "Vault HTTPS address (e.g. https://vault.example.com — must have runner-system KV mount + k8s auth pre-configured)", consumers: { equals: [VAULT_URL, RUNNER_VAULT_URL, VAULT_ADDR] } }
           - { id: qdrantUrl, prompt: "Qdrant HTTP URL (e.g. http://qdrant.example.com:6333)" }
         emits:
           postgresql:
@@ -743,11 +743,17 @@ axes:
               username: "<NEO4J_USERNAME>"
           vault:
             deploy: false
-            # Chart >=0.2.x reads vault.external.{address,authMountPoint} when
-            # deploy=false (webhooks/agentfarm/csi-secret-class templates). The
-            # flat `vault.address` shape nil-pointers at template time. authMountPoint
-            # is the k8s auth mount path in your external Vault (chart's bundled-vault
-            # default is "kubernetes").
+            # MISSED-11: the chart reads the external Vault URL in TWO shapes — set
+            # BOTH or the platform silently points at https://vault.<global.domain>:
+            #   flat  vault.address       -> runwhen.vaultAddress       (VAULT_URL / VAULT_ADDR)
+            #   flat  vault.runnerAddress -> runwhen.runnerVaultAddress (RUNNER_VAULT_URL)
+            #   flat  vault.authMountPoint (VAULT_AUTH_MOUNT_POINT env; defaults kubernetes)
+            #   nested vault.external.*    -> csi-secret-class / agentfarm / webhooks
+            # Reuse the one <VAULT_ADDRESS> — in-cluster + runner reach the same
+            # external Vault. authMountPoint is the k8s auth mount path in that Vault.
+            address: "<VAULT_ADDRESS>"
+            runnerAddress: "<VAULT_ADDRESS>"
+            authMountPoint: kubernetes
             external:
               address: "<VAULT_ADDRESS>"
               authMountPoint: kubernetes
@@ -757,7 +763,7 @@ axes:
             external:
               url: "<QDRANT_URL>"
         guide_sections: [subchart-byo-external]
-        known_issues: []
+        known_issues: [neo4j-external-agentfarm-usearch]
 
   - id: optional-components
     title: Optional integrations

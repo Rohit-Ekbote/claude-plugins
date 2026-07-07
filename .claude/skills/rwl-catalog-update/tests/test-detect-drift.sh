@@ -106,4 +106,22 @@ echo "$brow" | grep -q "15.99" && ok "records chart bci tag 15.99" || no "chart 
 awk -F'\t' '$2=="tag"&&($3=="neo4j"||$3=="vault")' "$OUTB/findings.tsv" | grep -q . && no "unchanged neo4j/vault flagged" || ok "unchanged neo4j/vault not flagged"
 rm -rf "$OUTB"
 
+echo "== consumer check: only the KNOWN byo-datastores neo4j mismatch, nothing else =="
+REALCHART="${RWL_CHART_PATH:-/Users/rohitekbote/wd/code/github.com/runwhen/rwlight-helm/charts/runwhen-platform}"
+if command -v helm >/dev/null 2>&1 && [ -f "$REALCHART/values.yaml" ]; then
+  OUTC="$(mktemp -d)"
+  bash "$DET" --chart "$REALCHART" --out "$OUTC" >/dev/null 2>&1
+  # byo-datastores + external Neo4j is a KNOWN chart bug (agentfarm/usearch hardcode
+  # the bundled neo4j host) — see data/known-issues/neo4j-external-agentfarm-usearch.md.
+  # The detector is EXPECTED to flag exactly that option and no other.
+  if awk -F'\t' '$2=="consumerMismatch" && $3=="byo-datastores"' "$OUTC/findings.tsv" | grep -q .; then
+    ok "detector flags the known byo-datastores neo4j consumerMismatch"
+  else no "detector did not flag byo-datastores (consumer check not running?)"; fi
+  unexpected="$(awk -F'\t' '$2=="consumerMismatch" && $3!="byo-datastores"{print $3}' "$OUTC/findings.tsv" | sort -u | tr '\n' ' ')"
+  [ -z "$unexpected" ] && ok "no unexpected consumerMismatch" || no "unexpected consumerMismatch: $unexpected"
+  rm -rf "$OUTC"
+else
+  ok "SKIP consumer check (no chart/helm)"
+fi
+
 echo ""; echo "detect-drift: $PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]
