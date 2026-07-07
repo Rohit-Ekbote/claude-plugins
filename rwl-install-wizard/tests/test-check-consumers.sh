@@ -54,5 +54,14 @@ EMPTY="$(mktemp)"; echo 'data: {}' > "$EMPTY"
 ruby "$LIB/check-consumers.rb" "$CAT" "$ANS" "$EMPTY" >/dev/null 2>&1
 [ "$?" != "0" ] && ok "absent consumer fails (input reached nothing)" || no "absent consumer should fail"
 
+echo "== --present-only: absent consumer is skipped, not failed =="
+ABS="$(mktemp)"; echo 'data: {}' > "$ABS"
+ruby "$LIB/check-consumers.rb" "$CAT" "$ANS" "$ABS" --present-only >/dev/null 2>&1
+[ "$?" = "0" ] && ok "absent consumer skipped under --present-only" || no "absent consumer should be skipped"
+echo "== --present-only: present-but-wrong still fails =="
+ruby "$LIB/check-consumers.rb" "$CAT" "$ANS" "$BAD" --present-only >/dev/null 2>&1
+[ "$?" != "0" ] && ok "present-but-wrong still fails under --present-only" || no "present-but-wrong must still fail"
+rm -f "$ABS"
+
 rm -f "$CAT" "$ANS" "$GOOD" "$BAD" "$EMPTY"
 echo ""; echo "check-consumers: $PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]

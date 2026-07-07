@@ -133,7 +133,7 @@ check_render() {
       fi
       # value-at-consumer: does any declared consumer resolve to the wrong value?
       if [ -f "$tmp/answers.yaml" ] && \
-         ! ruby "$REPO/rwl-install-wizard/lib/check-consumers.rb" "$CATALOG" "$tmp/answers.yaml" "$tmp/render.yaml" >/dev/null 2>&1; then
+         ! ruby "$REPO/rwl-install-wizard/lib/check-consumers.rb" "$CATALOG" "$tmp/answers.yaml" "$tmp/render.yaml" --present-only >/dev/null 2>&1; then
         emit_finding decide consumerMismatch "$opt" "an operator input does not reach its declared consumer" "$CHART" "" ""
       fi
     else

@@ -8,6 +8,7 @@ require 'yaml'
 require_relative 'consumer-values'
 
 catalog, answers_file, render_file = ARGV
+present_only = (ARGV[3] == "--present-only")
 cat = YAML.load_file(catalog)
 
 # param id -> {"equals"=>[...], "contains"=>[...]}
@@ -44,6 +45,7 @@ answers.each do |pid, val|
   end
   keys = ((c["equals"] || []) + (c["contains"] || [])).join(",")
   if total == 0
+    next if present_only
     puts "  FAIL: #{pid}: value #{val} reached NO consumer [#{keys}]"; fails += 1
   elsif !bad.empty?
     puts "  FAIL: #{pid}: #{bad.join('; ')}"; fails += 1
