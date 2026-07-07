@@ -107,7 +107,7 @@ check_render() {
   local opt tmp ov llm_off
   for opt in $(list_options); do
     tmp="$(mktemp -d)"
-    ov="$(ruby "$SKILL_DIR/gen-overlays.rb" "$CATALOG" "$tmp" "$opt")"
+    ov="$(ruby "$SKILL_DIR/gen-overlays.rb" "$CATALOG" "$tmp" "$opt" --answers)"
     [ -n "$ov" ] || { rm -rf "$tmp"; continue; }
     # The chart fail-fasts when llmGateway.deploy=true and models[] is empty — the
     # DEFAULT — so options that don't configure the gateway can't render in isolation.
@@ -130,6 +130,11 @@ check_render() {
       if [ "$ov" = "values-registry.yaml" ] && grep -Eo '(image|customImage): *"?[^" }]+' "$tmp/render.yaml" \
            | grep -vE 'git_url|github\.com' | grep -Eq "$PUBLIC_HOSTS"; then
         emit_finding decide publicRef "$opt" "registry option renders a public image ref against this chart" "$CHART" "" ""
+      fi
+      # value-at-consumer: does any declared consumer resolve to the wrong value?
+      if [ -f "$tmp/answers.yaml" ] && \
+         ! ruby "$REPO/rwl-install-wizard/lib/check-consumers.rb" "$CATALOG" "$tmp/answers.yaml" "$tmp/render.yaml" >/dev/null 2>&1; then
+        emit_finding decide consumerMismatch "$opt" "an operator input does not reach its declared consumer" "$CHART" "" ""
       fi
     else
       emit_finding decide render "$opt" "option fails to render: $(head -1 "$tmp/err" | cut -c1-160)" "$CHART" "" ""

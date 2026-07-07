@@ -45,5 +45,10 @@ cat["axes"].each do |axis|
     data = subst(Marshal.load(Marshal.dump(em)), pmap)
     File.write(File.join(outdir, ov), data.to_yaml)
     puts ov
+    if ARGV[3] == "--answers"
+      ans = { "option" => want }
+      pids.each { |pid| ans[pid] = dummy(pid) }
+      File.write(File.join(outdir, "answers.yaml"), { "answers" => { "x" => ans } }.to_yaml)
+    end
   end
 end
