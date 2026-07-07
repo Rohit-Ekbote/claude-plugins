@@ -743,11 +743,17 @@ axes:
               username: "<NEO4J_USERNAME>"
           vault:
             deploy: false
-            # Chart >=0.2.x reads vault.external.{address,authMountPoint} when
-            # deploy=false (webhooks/agentfarm/csi-secret-class templates). The
-            # flat `vault.address` shape nil-pointers at template time. authMountPoint
-            # is the k8s auth mount path in your external Vault (chart's bundled-vault
-            # default is "kubernetes").
+            # MISSED-11: the chart reads the external Vault URL in TWO shapes — set
+            # BOTH or the platform silently points at https://vault.<global.domain>:
+            #   flat  vault.address       -> runwhen.vaultAddress       (VAULT_URL / VAULT_ADDR)
+            #   flat  vault.runnerAddress -> runwhen.runnerVaultAddress (RUNNER_VAULT_URL)
+            #   flat  vault.authMountPoint (VAULT_AUTH_MOUNT_POINT env; defaults kubernetes)
+            #   nested vault.external.*    -> csi-secret-class / agentfarm / webhooks
+            # Reuse the one <VAULT_ADDRESS> — in-cluster + runner reach the same
+            # external Vault. authMountPoint is the k8s auth mount path in that Vault.
+            address: "<VAULT_ADDRESS>"
+            runnerAddress: "<VAULT_ADDRESS>"
+            authMountPoint: kubernetes
             external:
               address: "<VAULT_ADDRESS>"
               authMountPoint: kubernetes

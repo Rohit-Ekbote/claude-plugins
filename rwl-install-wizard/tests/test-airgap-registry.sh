@@ -127,9 +127,17 @@ if command -v helm >/dev/null 2>&1 && [ -f "$CHART/Chart.yaml" ]; then
   # only plugin-emitted fixtures; NO --set.
   BYO="$(dirname "$AIRGAP")/byo-datastores/values-cluster.yaml"
   if helm template rw-airgap "$CHART" -f "$CHART/values.yaml" -f "$STO" -f "$CLU" -f "$BYO" >"$TMP" 2>"$TMP.err"; then
-    if grep -q 'vault.example.com' "$TMP"; then
-      ok "byo-datastores renders (external vault.external.address wired)"
-    else no "byo-datastores rendered but external vault address absent"; fi
+    # Assert the VALUE at each consumer, NOT mere presence. MISSED-11: the external
+    # address appeared on csi-secret-class while VAULT_URL/RUNNER_VAULT_URL silently
+    # resolved to https://vault.<domain> (the plugin set only vault.external.*, but the
+    # chart reads flat vault.address / vault.runnerAddress for those). A bare
+    # `grep vault.example.com` passed on the csi occurrence alone and hid it.
+    vok=1
+    grep -q 'VAULT_URL: "https://vault.example.com"' "$TMP" || vok=0
+    grep -q 'RUNNER_VAULT_URL: "https://vault.example.com"' "$TMP" || vok=0
+    grep -q 'vault\.airgap\.example\.com' "$TMP" && vok=0   # no domain-derived host may leak
+    [ "$vok" = 1 ] && ok "byo-datastores: VAULT_URL + RUNNER_VAULT_URL resolve to the external Vault" \
+                   || no "byo-datastores: a Vault URL does not resolve to the operator's external address"
   else
     no "byo-datastores helm template FAILED: $(head -1 "$TMP.err")"
   fi
