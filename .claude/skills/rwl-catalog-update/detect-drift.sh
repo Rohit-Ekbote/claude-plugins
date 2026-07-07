@@ -91,6 +91,44 @@ check_tags() {
   done
 }
 
+PUBLIC_HOSTS='us-docker\.pkg\.dev|ghcr\.io|quay\.io|registry-1\.docker\.io|docker\.io|registry\.k8s\.io|registry\.suse\.com'
+
+list_options() {
+  ruby -ryaml -e '
+    YAML.load_file(ARGV[0])["axes"].each{|a| (a["options"]||[]).each{|o|
+      puts o["id"] if o["overlay"] && o["emits"] && o["emits"]!={} }}' "$CATALOG"
+}
+
+check_render() {
+  if ! command -v helm >/dev/null 2>&1 || [ ! -f "$CHART/values.yaml" ]; then
+    emit_finding auto renderSkipped "" "helm or chart values.yaml unavailable — render checks skipped" "$CHART" "" ""
+    return 0
+  fi
+  local opt tmp ov
+  for opt in $(list_options); do
+    tmp="$(mktemp -d)"
+    ov="$(ruby "$SKILL_DIR/gen-overlays.rb" "$CATALOG" "$tmp" "$opt")"
+    [ -n "$ov" ] || { rm -rf "$tmp"; continue; }
+    if helm template rw "$CHART" -f "$CHART/values.yaml" -f "$tmp/$ov" \
+         --set neo4j.disableLookups=true --set qdrant.disableLookups=true \
+         --set llmGateway.deploy=false \
+         > "$tmp/render.yaml" 2> "$tmp/err"; then
+      # The public-ref invariant applies ONLY to the registry overlay — it is the
+      # one that mirrors images. Every other overlay legitimately inherits the
+      # chart's public default images for services it doesn't touch, so checking
+      # those would emit noise, not drift.
+      if [ "$ov" = "values-registry.yaml" ] && grep -Eo '(image|customImage): *"?[^" }]+' "$tmp/render.yaml" \
+           | grep -vE 'git_url|github\.com' | grep -Eq "$PUBLIC_HOSTS"; then
+        emit_finding decide publicRef "$opt" "registry option renders a public image ref against this chart" "$CHART" "" ""
+      fi
+    else
+      emit_finding decide render "$opt" "option fails to render: $(head -1 "$tmp/err" | cut -c1-160)" "$CHART" "" ""
+    fi
+    rm -rf "$tmp"
+  done
+}
+
 check_chartcompat
 check_validators
 check_tags
+check_render

@@ -51,4 +51,19 @@ echo "$row" | grep -q "^auto" && ok "tag drift is auto-fixable" || no "wrong buc
 awk -F'\t' '$2=="tag"&&$3=="vault"' "$OUT3/findings.tsv" | grep -q . && no "unchanged vault flagged" || ok "unchanged vault not flagged"
 rm -rf "$OUT3"
 
+echo "== render check: runs against real chart if available, else skips cleanly =="
+OUT4="$(mktemp -d)"
+REALCHART="${RWL_CHART_PATH:-/Users/rohitekbote/wd/code/github.com/runwhen/rwlight-helm/charts/runwhen-platform}"
+if command -v helm >/dev/null 2>&1 && [ -f "$REALCHART/values.yaml" ]; then
+  bash "$DET" --chart "$REALCHART" --out "$OUT4" >/dev/null 2>&1
+  # mirrored-per-upstream must render clean against the current chart -> no render/publicRef finding for it
+  if awk -F'\t' '($2=="render"||$2=="publicRef")&&$3=="mirrored-per-upstream"' "$OUT4/findings.tsv" | grep -q .; then
+    no "mirrored-per-upstream unexpectedly flagged against current chart"
+  else ok "mirrored-per-upstream renders clean against current chart"; fi
+else
+  bash "$DET" --chart "$FIX/chart-compat" --out "$OUT4" >/dev/null 2>&1
+  grep -q $'\trenderSkipped\t' "$OUT4/findings.tsv" && ok "render check skips cleanly without chart/helm" || no "no renderSkipped note"
+fi
+rm -rf "$OUT4"
+
 echo ""; echo "detect-drift: $PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]
