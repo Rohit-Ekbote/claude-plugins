@@ -55,7 +55,7 @@ axes:
     question: "What domain and storage/ingress infrastructure does this cluster use?"
     params:
       - { id: domain, prompt: "Public base domain (e.g. rw.example.com)" }
-      - { id: ingressClass, prompt: "IngressClass name (e.g. nginx, traefik)" }
+      - { id: ingressClass, prompt: "IngressClass name — must match an ingress controller already installed in the cluster, or the Ingress won't be routed. Discover/confirm it with `kubectl get ingressclass` (common values: nginx, ingress-nginx, traefik)." }
     options:
       - id: clusterIssuer
         label: "cert-manager ClusterIssuer (ACME / Let's Encrypt or private ACME)"
@@ -248,6 +248,11 @@ axes:
               registry: "<REGISTRY_HOST>/docker-dockerhub"
               repository: "bitnamilegacy/redis"
           neo4j:                         # docker.io/library/neo4j (full-path customImage)
+            # MISSED-10: with image.imagePullSecrets set (below), the neo4j subchart
+            # aborts at TEMPLATE + install time ("Missing imageCredential entry for
+            # <secret>") unless disableLookups is true. REQUIRED — render fails
+            # without it; the real air-gap install sets it (helmrelease.yaml:297).
+            disableLookups: true
             image:
               customImage: "<REGISTRY_HOST>/docker-dockerhub/library/neo4j:5.26.0"   # PINNED-TAG 5.26.0 — see x-airgap-pinned-tags-notice
               imagePullSecrets:
@@ -264,6 +269,11 @@ axes:
               image:
                 registry: "<REGISTRY_HOST>/docker-dockerhub"
           qdrant:                        # docker.io/qdrant/qdrant (full-path repository)
+            # Defensive parity with neo4j: the pinned qdrant subchart (1.18.2) has NO
+            # disableLookups guard, so this is a harmless no-op for the current chart
+            # (render verified to pass without it) — set for forward-compat if a future
+            # qdrant subchart adopts the same lookup guard neo4j uses.
+            disableLookups: true
             image:
               repository: "<REGISTRY_HOST>/docker-dockerhub/qdrant/qdrant"
             imagePullSecrets:

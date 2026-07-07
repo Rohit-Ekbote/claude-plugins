@@ -116,8 +116,12 @@ check_render() {
     # blind this check to llmGateway.*/llmBootstrap drift, the exact surface it must cover.
     llm_off="--set llmGateway.deploy=false"
     grep -q '^llmGateway:' "$tmp/$ov" && llm_off=""
+    # Render the overlay VERBATIM (plus only the llm_off isolation-enabler above,
+    # which the plugin cannot express per-option). Deliberately NO neo4j/qdrant
+    # disableLookups --set: that crutch would hide a MISSED-10-class drift (an
+    # overlay wiring pull secrets without disableLookups) — the exact failure this
+    # render check exists to catch. The plugin emits disableLookups itself now.
     if helm template rw "$CHART" -f "$CHART/values.yaml" -f "$tmp/$ov" $llm_off \
-         --set neo4j.disableLookups=true --set qdrant.disableLookups=true \
          > "$tmp/render.yaml" 2> "$tmp/err"; then
       # The public-ref invariant applies ONLY to the registry overlay — it is the
       # one that mirrors images. Every other overlay legitimately inherits the

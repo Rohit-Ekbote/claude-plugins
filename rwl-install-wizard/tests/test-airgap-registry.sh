@@ -109,8 +109,11 @@ echo "== RENDER (oracle): helm template fixtures with a NON-rw release =="
 CHART="${RWL_CHART_PATH:-/Users/rohitekbote/wd/code/github.com/runwhen/rwlight-helm/charts/runwhen-platform}"
 if command -v helm >/dev/null 2>&1 && [ -f "$CHART/Chart.yaml" ]; then
   TMP="$(mktemp)"
-  if helm template rw-airgap "$CHART" -f "$CHART/values.yaml" -f "$REG" -f "$STO" -f "$CLU" \
-       --set neo4j.disableLookups=true --set qdrant.disableLookups=true >"$TMP" 2>"$TMP.err"; then
+  # RENDER THE GENERATED OVERLAYS VERBATIM. Never pass --set values the plugin
+  # does not emit — a --set crutch here is exactly what let MISSED-10 ship green
+  # (the overlay omitted neo4j.disableLookups while the test injected it). The
+  # overlays must render as an operator installs them, with no extra flags.
+  if helm template rw-airgap "$CHART" -f "$CHART/values.yaml" -f "$REG" -f "$STO" -f "$CLU" >"$TMP" 2>"$TMP.err"; then
     ok "helm template succeeds (non-rw release; no validate fail-fast)"
     if grep -nE '(image|customImage): *"?('"$PUBLIC_HOSTS"')' "$TMP" >/dev/null; then
       no "rendered manifests contain a public image ref"; else ok "every rendered image ref is on the mirror"; fi

@@ -85,6 +85,7 @@ redis:
     registry: artifactory.corp.example/docker-dockerhub
     repository: bitnamilegacy/redis
 neo4j:
+  disableLookups: true   # MISSED-10: required with image.imagePullSecrets or the subchart aborts
   image:
     customImage: artifactory.corp.example/docker-dockerhub/library/neo4j:5.26.0   # PINNED-TAG — verify vs Chart.lock
     imagePullSecrets:
@@ -101,6 +102,7 @@ vault:
     image:
       registry: artifactory.corp.example/docker-dockerhub
 qdrant:
+  disableLookups: true   # defensive parity (no-op for qdrant 1.18.2 — no such guard)
   image:
     repository: artifactory.corp.example/docker-dockerhub/qdrant/qdrant
   imagePullSecrets:
