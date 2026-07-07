@@ -763,7 +763,7 @@ axes:
             external:
               url: "<QDRANT_URL>"
         guide_sections: [subchart-byo-external]
-        known_issues: []
+        known_issues: [neo4j-external-agentfarm-usearch]
 
   - id: optional-components
     title: Optional integrations

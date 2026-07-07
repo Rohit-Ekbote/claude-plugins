@@ -142,9 +142,18 @@ if command -v helm >/dev/null 2>&1 && [ -f "$CHART/Chart.yaml" ]; then
     grep -q 'vault\.airgap\.example\.com' "$TMP" && vok=0   # no domain-derived host may leak
     [ "$vok" = 1 ] && ok "byo-datastores: VAULT_URL + RUNNER_VAULT_URL resolve to the external Vault" \
                    || no "byo-datastores: a Vault URL does not resolve to the operator's external address"
-    if ruby "$PLUGIN_DIR/lib/check-consumers.rb" "$CATALOG" "$(dirname "$AIRGAP")/../profiles/byo.yaml" "$TMP" >/dev/null 2>&1; then
+    cc_out="$(ruby "$PLUGIN_DIR/lib/check-consumers.rb" "$CATALOG" "$SCRIPT_DIR/fixtures/profiles/byo.yaml" "$TMP" 2>&1)"
+    if [ $? -eq 0 ]; then
       ok "byo: every operator input (vault/pg/redis/neo4j/llm) reaches its consumer"
-    else no "byo: an operator input did not reach its declared consumer"; fi
+    else
+      # KNOWN-ISSUE RED (data/known-issues/neo4j-external-agentfarm-usearch.md): with
+      # external Neo4j the chart hardcodes the bundled neo4j host into agentfarm/usearch
+      # NEO4J_URI/GRAPH_DB_URI, so those consumers never reflect the operator's neo4jUri.
+      # EXPECTED to fail until the rwlight-helm chart is fixed. A failing param OTHER than
+      # neo4jUri is a NEW regression, not this known issue.
+      failed="$(printf '%s\n' "$cc_out" | awk '/FAIL:/{print $2}' | tr -d ':' | sort -u | tr '\n' ' ')"
+      no "byo: input(s) not reaching consumer: ${failed}[known: neo4jUri = chart bug neo4j-external-agentfarm-usearch]"
+    fi
   else
     no "byo-datastores helm template FAILED: $(head -1 "$TMP.err")"
   fi
