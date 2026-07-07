@@ -120,6 +120,19 @@ if command -v helm >/dev/null 2>&1 && [ -f "$CHART/Chart.yaml" ]; then
   else
     no "helm template FAILED: $(head -1 "$TMP.err")"
   fi
+  # byo-datastores must ALSO render verbatim — external datastores layered with
+  # the storage + cluster overlays. Exercises vault.external.address, whose flat
+  # `vault.address` shape nil-pointered on the webhooks/agentfarm/csi templates
+  # (the render guard only covered the bundled-datastores profile before). Uses
+  # only plugin-emitted fixtures; NO --set.
+  BYO="$(dirname "$AIRGAP")/byo-datastores/values-cluster.yaml"
+  if helm template rw-airgap "$CHART" -f "$CHART/values.yaml" -f "$STO" -f "$CLU" -f "$BYO" >"$TMP" 2>"$TMP.err"; then
+    if grep -q 'vault.example.com' "$TMP"; then
+      ok "byo-datastores renders (external vault.external.address wired)"
+    else no "byo-datastores rendered but external vault address absent"; fi
+  else
+    no "byo-datastores helm template FAILED: $(head -1 "$TMP.err")"
+  fi
   rm -f "$TMP" "$TMP.err"
 else
   echo "  SKIP: chart not found at \$RWL_CHART_PATH ($CHART) — static checks only"

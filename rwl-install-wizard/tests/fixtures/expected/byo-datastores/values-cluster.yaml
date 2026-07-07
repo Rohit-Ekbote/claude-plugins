@@ -19,7 +19,9 @@ neo4j:
     username: neo4j
 vault:
   deploy: false
-  address: https://vault.example.com
+  external:
+    address: https://vault.example.com
+    authMountPoint: kubernetes
 qdrant:
   deploy: false
   useSubchart: false
