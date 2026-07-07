@@ -149,10 +149,15 @@ if command -v helm >/dev/null 2>&1 && [ -f "$CHART/Chart.yaml" ]; then
       # KNOWN-ISSUE RED (data/known-issues/neo4j-external-agentfarm-usearch.md): with
       # external Neo4j the chart hardcodes the bundled neo4j host into agentfarm/usearch
       # NEO4J_URI/GRAPH_DB_URI, so those consumers never reflect the operator's neo4jUri.
-      # EXPECTED to fail until the rwlight-helm chart is fixed. A failing param OTHER than
-      # neo4jUri is a NEW regression, not this known issue.
-      failed="$(printf '%s\n' "$cc_out" | awk '/FAIL:/{print $2}' | tr -d ':' | sort -u | tr '\n' ' ')"
-      no "byo: input(s) not reaching consumer: ${failed}[known: neo4jUri = chart bug neo4j-external-agentfarm-usearch]"
+      # EXPECTED to fail until the rwlight-helm chart is fixed. Split known vs new so a
+      # SECOND consumer regression emits its OWN failure and moves the pass/fail tally —
+      # the known red must not mask a new one.
+      failed="$(printf '%s\n' "$cc_out" | awk '/FAIL:/{print $2}' | tr -d ':' | sort -u | grep -v '^$')"
+      if printf '%s\n' "$failed" | grep -qx 'neo4jUri'; then
+        no "byo: KNOWN neo4jUri consumer red (chart bug neo4j-external-agentfarm-usearch)"
+      fi
+      unexpected="$(printf '%s\n' "$failed" | grep -vx 'neo4jUri' | grep -v '^$' | tr '\n' ' ')"
+      [ -n "$unexpected" ] && no "byo: UNEXPECTED consumer regression (not the known issue): $unexpected"
     fi
   else
     no "byo-datastores helm template FAILED: $(head -1 "$TMP.err")"
