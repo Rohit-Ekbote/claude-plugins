@@ -252,13 +252,17 @@ check_chartcompat() {
   local ver compat
   ver="$(awk '/^version:/{print $2; exit}' "$CHART/Chart.yaml")"
   compat="$(awk -F'"' '/^chartCompat:/{print $2; exit}' "$CATALOG")"
-  # crude range check: extract the "<X.Y" upper bound and compare major.minor.
+  # Extract the "<X.Y" upper bound and compare major.minor. The range is
+  # exclusive of the upper bound (`<0.3`), so a chart whose major.minor is >=
+  # the bound is OUTSIDE — including equality (0.3.x is outside `<0.3`). That
+  # holds exactly when min(vmm, upper) == upper.
   local upper; upper="$(printf '%s' "$compat" | sed -nE 's/.*<([0-9]+\.[0-9]+).*/\1/p')"
   local vmm; vmm="$(printf '%s' "$ver" | sed -nE 's/^([0-9]+\.[0-9]+).*/\1/p')"
-  if [ -n "$upper" ] && [ -n "$vmm" ] && [ "$(printf '%s\n%s\n' "$vmm" "$upper" | sort -V | tail -1)" = "$vmm" ] && [ "$vmm" != "$upper" ]; then
+  local mn; mn="$(printf '%s\n%s\n' "$vmm" "$upper" | sort -V | head -1)"
+  if [ -n "$upper" ] && [ -n "$vmm" ] && [ "$mn" = "$upper" ]; then
     emit_finding decide chartCompat "" "chart $ver is outside catalog range $compat" "$CHART/Chart.yaml" "$compat" "$ver"
   else
-    emit_finding auto chartCompat "" "chart $ver within/at catalog range $compat" "$CHART/Chart.yaml" "$compat" "$ver"
+    emit_finding auto chartCompat "" "chart $ver within catalog range $compat" "$CHART/Chart.yaml" "$compat" "$ver"
   fi
 }
 
@@ -422,7 +426,7 @@ echo "$row" | grep -q "neo4j" && ok "neo4j tag drift detected" || no "neo4j tag 
 echo "$row" | grep -q "5.26.99" && ok "records chart tag 5.26.99" || no "chart tag not recorded"
 echo "$row" | grep -q "^auto" && ok "tag drift is auto-fixable" || no "wrong bucket for tag"
 # vault unchanged (1.21.2 == catalog) must NOT be flagged
-grep -P '\ttag\t.*vault' "$OUT3/findings.tsv" >/dev/null 2>&1 && no "unchanged vault flagged" || ok "unchanged vault not flagged"
+awk -F'\t' '$2=="tag"&&$3=="vault"' "$OUT3/findings.tsv" | grep -q . && no "unchanged vault flagged" || ok "unchanged vault not flagged"
 rm -rf "$OUT3"
 ```
 
@@ -508,7 +512,7 @@ REALCHART="${RWL_CHART_PATH:-/Users/rohitekbote/wd/code/github.com/runwhen/rwlig
 if command -v helm >/dev/null 2>&1 && [ -f "$REALCHART/values.yaml" ]; then
   bash "$DET" --chart "$REALCHART" --out "$OUT4" >/dev/null 2>&1
   # mirrored-per-upstream must render clean against the current chart -> no render/publicRef finding for it
-  if grep -P '\t(render|publicRef)\tmirrored-per-upstream' "$OUT4/findings.tsv" >/dev/null 2>&1; then
+  if awk -F'\t' '($2=="render"||$2=="publicRef")&&$3=="mirrored-per-upstream"' "$OUT4/findings.tsv" | grep -q .; then
     no "mirrored-per-upstream unexpectedly flagged against current chart"
   else ok "mirrored-per-upstream renders clean against current chart"; fi
 else
