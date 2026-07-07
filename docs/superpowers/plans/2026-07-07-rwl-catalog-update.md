@@ -553,9 +553,13 @@ check_render() {
     if helm template rw "$CHART" -f "$CHART/values.yaml" -f "$tmp/$ov" \
          --set neo4j.disableLookups=true --set qdrant.disableLookups=true \
          > "$tmp/render.yaml" 2> "$tmp/err"; then
-      if grep -Eo '(image|customImage): *"?[^" }]+' "$tmp/render.yaml" \
+      # The public-ref invariant applies ONLY to the registry overlay — it is the
+      # one that mirrors images. Every other overlay legitimately inherits the
+      # chart's public default images for services it doesn't touch, so checking
+      # those would emit noise, not drift.
+      if [ "$ov" = "values-registry.yaml" ] && grep -Eo '(image|customImage): *"?[^" }]+' "$tmp/render.yaml" \
            | grep -vE 'git_url|github\.com' | grep -Eq "$PUBLIC_HOSTS"; then
-        emit_finding decide publicRef "$opt" "option renders a public image ref against this chart" "$CHART" "" ""
+        emit_finding decide publicRef "$opt" "registry option renders a public image ref against this chart" "$CHART" "" ""
       fi
     else
       emit_finding decide render "$opt" "option fails to render: $(head -1 "$tmp/err" | cut -c1-160)" "$CHART" "" ""
