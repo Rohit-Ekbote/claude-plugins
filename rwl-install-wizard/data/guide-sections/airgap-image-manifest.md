@@ -72,21 +72,51 @@ registry.suse.com/bci/bci-base:15.7
 > change one here, change it in the overlay too. The wizard's regression guard
 > asserts the two stay identical, so they cannot silently drift.
 
-#### 3. Copy each image to the mirror (skopeo — no local daemon needed)
+#### 3. Copy each image to the mirror — PER-UPSTREAM, path-preserving (skopeo)
+
+The generated `values-registry.yaml` uses the per-upstream, path-preserving
+model: each image keeps its source path under a per-upstream remote
+(`docker-dockerhub`, `docker-ghcr`, `docker-runwhen-self-hosted`, `docker-suse`).
+**The push target for every image is exactly the ref the overlay renders** — so
+the copy targets below are, by construction, what the cluster will pull. (This is
+why the old single-prefix `registryOverride`/flat-mirror model was removed: it
+collapsed images to `<mirror>/<repo>`, disagreeing with these push paths →
+ImagePullBackOff.)
+
+Map each upstream host to its per-upstream remote and preserve the rest of the
+path (rename the `docker-*` remote segments if your mirror named them differently
+— keep them identical in `values-registry.yaml` and here):
 
 ```bash
+to_mirror() {
+  ref="$1"; host="${ref%%/*}"; path="${ref#*/}"
+  case "$host" in
+    us-docker.pkg.dev)               echo "<REGISTRY_HOST>/docker-runwhen-self-hosted/${path}" ;;
+    ghcr.io)                         echo "<REGISTRY_HOST>/docker-ghcr/${path}" ;;
+    docker.io|registry-1.docker.io)  echo "<REGISTRY_HOST>/docker-dockerhub/${path}" ;;
+    registry.suse.com)               echo "<REGISTRY_HOST>/docker-suse/${path}" ;;
+    quay.io)                         echo "<REGISTRY_HOST>/docker-quay/${path}" ;;
+    *) echo "UNMAPPED-UPSTREAM:$ref" >&2; return 1 ;;
+  esac
+}
 while read -r ref; do
   case "$ref" in \#*|"") continue ;; esac
-  repo_tag="${ref#*/}"                       # strip the upstream host
-  skopeo copy --all \
-    "docker://$ref" \
-    "docker://<REGISTRY_HOST>/${repo_tag}"
+  dst="$(to_mirror "$ref")" || { echo "no mapping for $ref — add one"; continue; }
+  skopeo copy --all "docker://$ref" "docker://$dst"
 done < images-to-mirror.txt
 ```
 
-`crane cp <ref> <REGISTRY_HOST>/<repo>:<tag>` works equally well. Confirm the
-target paths match what your `values-registry.yaml` emits — e.g. a flat mirror
-expects `<REGISTRY_HOST>/library/neo4j:5.26.0`, `<REGISTRY_HOST>/hashicorp/vault:1.21.2`.
+**Verify overlay == manifest** before installing — every rendered ref must be a
+target this loop pushes to:
+
+```bash
+helm template <RELEASE> <CHART_REF> \
+  -f runwhen-platform/values.yaml -f values-registry.yaml \
+  | grep -Eo '(image|customImage): *"?[^" ]+' | awk '{print $2}' | sort -u
+# Each line must start with <REGISTRY_HOST>/docker-... and match a to_mirror() target.
+```
+
+`crane cp <upstream-ref> <to_mirror-target>` works equally well.
 
 #### 4. Digest-pin for immutable, supply-chain-verifiable installs
 
@@ -95,8 +125,8 @@ For hardened installs, resolve each ref to its `sha256:` digest and pin by
 digest in your overlay so the cluster only ever runs the bytes you scanned:
 
 ```bash
-# Resolve digests once, after mirroring:
-crane digest <REGISTRY_HOST>/library/neo4j:5.26.0
+# Resolve digests once, after mirroring (against the per-upstream target path):
+crane digest <REGISTRY_HOST>/docker-dockerhub/library/neo4j:5.26.0
 #   sha256:abc123...
 ```
 
@@ -105,11 +135,11 @@ Then pin the resolved digest instead of the tag, e.g.:
 ```yaml
 neo4j:
   image:
-    customImage: "<REGISTRY_HOST>/library/neo4j@sha256:abc123..."
+    customImage: "<REGISTRY_HOST>/docker-dockerhub/library/neo4j@sha256:abc123..."
 vault:
   server:
     image:
-      repository: "<REGISTRY_HOST>/hashicorp/vault"
+      repository: "<REGISTRY_HOST>/docker-dockerhub/hashicorp/vault"
       tag: "sha256:def456..."        # digest form; drops tag-rug risk
 ```
 

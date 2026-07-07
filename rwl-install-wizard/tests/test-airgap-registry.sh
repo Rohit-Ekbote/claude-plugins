@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
-# test-airgap-registry.sh — Regression guard for air-gap registry routing.
+# test-airgap-registry.sh — Regression guard for the air-gap install kit.
 #
-# Would have caught the BLOCKER: registry-routing→flat-mirror emitted only
-# `registryOverride` + pull secrets. The chart's own `registryOverride` doc
-# (values.yaml) states it CANNOT reach subchart-emitted images (vault, redis,
-# neo4j, qdrant, mimir, seaweedfs, spilo, pgbouncer). With subcharts=bundled-all
-# in an air-gapped cluster those images resolve to public registries and
-# ImagePullBackOff. This test asserts every mirror option emits an explicit
-# per-subchart image override, and that no rendered air-gap overlay leaks a
-# public registry host.
+# Ground-truth review (v0.1.2) found the generated air-gap values were NOT
+# installable. This guard asserts the fixes against the WORKING reference
+# (infra-flux .../airgap/runwhen-platform/helmrelease.yaml) + the chart schema:
+#
+#   MISSED-1  no registryOverride; per-upstream, path-preserving image refs so
+#             overlay == image-manifest push targets; no public registry survives.
+#   MISSED-2  seaweedfs.s3.existingConfigSecret == <release>-seaweedfs-identities.
+#   MISSED-3  metricstore.persistence.storageClassName (not the ignored storageClass).
+#   MISSED-4  every stateful component (spilo/vault/neo4j/redis) wired to the class.
+#   MISSED-5  llmBootstrap emitted (LLM stack seeded, not inert).
+#   MISSED-6  codeCollections + cc-catalog sources repointed at the mirror.
+#   MISSED-7  ccCatalog.auth.dockerconfigjsonSecret emitted.
+#
+# Static checks always run (no helm needed). The RENDER check runs when a chart
+# is available (env RWL_CHART_PATH, else a known local path) — it `helm template`s
+# the fixtures with a NON-`rw` release and asserts zero public/unresolved image
+# refs and no validate fail-fast (the check the old public-host grep couldn't do).
 #
 # bash 3.2 compatible (macOS default). No YAML parser.
 set -uo pipefail
@@ -16,22 +25,24 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 CATALOG="$PLUGIN_DIR/data/knob-catalog.yaml"
-FIXT="$SCRIPT_DIR/fixtures"
+MANIFEST="$PLUGIN_DIR/data/guide-sections/airgap-image-manifest.md"
+AIRGAP="$SCRIPT_DIR/fixtures/expected/airgap"
+REG="$AIRGAP/values-registry.yaml"
+STO="$AIRGAP/values-storage.yaml"
+CLU="$AIRGAP/values-cluster.yaml"
 
 PASS=0; FAIL=0
 ok(){ printf "  PASS: %s\n" "$1"; PASS=$((PASS+1)); }
 no(){ printf "  FAIL: %s\n" "$1"; FAIL=$((FAIL+1)); }
+has(){ grep -qF "$2" "$1"; }   # has <file> <literal>
 
-# Print the body of a catalog option (`- id: <want>` … next `- id:` at same or
-# shallower indent). BSD-awk safe: no gawk match() capture groups.
 option_block() {
   awk -v want="$1" '
     function fns(s){ return match(s, /[^ ]/) ? RSTART-1 : length(s) }
     {
       if ($0 ~ /^[[:space:]]*-[[:space:]]+id:[[:space:]]*/) {
         ind=fns($0); t=$0
-        sub(/^[[:space:]]*-[[:space:]]+id:[[:space:]]*/, "", t)
-        sub(/[[:space:]].*$/, "", t)
+        sub(/^[[:space:]]*-[[:space:]]+id:[[:space:]]*/, "", t); sub(/[[:space:]].*$/, "", t)
         if (cap && ind<=start) cap=0
         if (t==want) { cap=1; start=ind; print; next }
       }
@@ -39,82 +50,77 @@ option_block() {
     }' "$CATALOG"
 }
 
-# Public registry hosts that must NEVER survive into a mirror emit/overlay.
+# Public hosts that must never survive into an air-gap overlay (git URLs excluded).
 PUBLIC_HOSTS='us-docker\.pkg\.dev|ghcr\.io|quay\.io|registry-1\.docker\.io|docker\.io|registry\.k8s\.io|registry\.suse\.com'
-
-# Subchart images `registryOverride` cannot reach — each needs its own override.
-# Markers are the distinctive emit keys the override introduces per subchart.
-REQUIRED_MARKERS="spilo: redis: customImage: server: qdrant: seaweedfs:"
-
-check_option_covers_subcharts() {
-  opt="$1"; blk="$(option_block "$opt")"
-  [ -n "$blk" ] || { no "$opt: option block not found in catalog"; return; }
-  for m in $REQUIRED_MARKERS; do
-    if printf '%s\n' "$blk" | grep -q "$m"; then ok "$opt emits subchart override '$m'"
-    else no "$opt MISSING subchart image override '$m' (public-registry pull in air-gap)"; fi
-  done
-  # Check emitted VALUES only — strip YAML comments so upstream-registry names
-  # used in explanatory comments (e.g. "# ghcr.io/zalando/spilo-17") don't trip it.
-  if printf '%s\n' "$blk" | sed 's/#.*$//' | grep -Eq "$PUBLIC_HOSTS"; then
-    no "$opt emit references a public registry host"
-  else ok "$opt emit references no public registry host"; fi
+no_public() {   # no_public <file> <label>
+  if grep -nE "$PUBLIC_HOSTS" "$1" | grep -vE 'git_url|repoUrl|github\.com' >/dev/null; then
+    no "$2 leaks a public registry host"; else ok "$2 has no public registry host"; fi
 }
 
-echo "== flat-mirror covers every subchart image (the check that catches #1) =="
-check_option_covers_subcharts flat-mirror
+echo "== MISSED-1: registryOverride removed / per-upstream model =="
+if grep -q 'id: flat-mirror' "$CATALOG"; then no "flat-mirror option still present (registryOverride footgun)"; else ok "flat-mirror option removed"; fi
+if grep -q 'id: mirrored-per-upstream' "$CATALOG"; then ok "mirrored-per-upstream option present"; else no "mirrored-per-upstream option missing"; fi
+# Match the emitted KEY only (strip comment lines first — the removal rationale
+# legitimately names registryOverride in prose).
+nocomment(){ grep -vE '^[[:space:]]*#' "$1"; }
+if nocomment "$CATALOG" | grep -qE 'registryOverride[[:space:]]*:'; then no "catalog still emits a registryOverride key"; else ok "catalog never emits registryOverride"; fi
+if nocomment "$REG" | grep -qE 'registryOverride[[:space:]]*:'; then no "values-registry.yaml sets registryOverride"; else ok "values-registry.yaml has no registryOverride"; fi
 
-echo "== jfrog-per-upstream covers every subchart image =="
-check_option_covers_subcharts jfrog-per-upstream
-
-echo "== rendered air-gap overlays keep every image on the mirror host =="
-for f in "$FIXT"/expected/airgap-flat-mirror/values-registry.yaml \
-         "$FIXT"/expected/airgap-jfrog/values-registry.yaml; do
-  label="$(basename "$(dirname "$f")")/$(basename "$f")"
-  if [ ! -f "$f" ]; then no "missing expected overlay: $label"; continue; fi
-  if grep -Eq "$PUBLIC_HOSTS" "$f"; then
-    no "public registry host survives in $label"
-  else ok "no public registry host in $label"; fi
+echo "== MISSED-1: overlays keep every image on the mirror (per-upstream paths) =="
+no_public "$REG" "values-registry.yaml"
+for ref in \
+  "artifactory.corp.example/docker-runwhen-self-hosted/runwhen-self-hosted/platform-images" \
+  "artifactory.corp.example/docker-ghcr/runwhen-contrib" \
+  "artifactory.corp.example/docker-ghcr/berriai" \
+  "artifactory.corp.example/docker-ghcr/zalando" \
+  "artifactory.corp.example/docker-dockerhub/library/neo4j:5.26.0" \
+  "artifactory.corp.example/docker-suse/bci/bci-base:15.7"; do
+  if has "$REG" "$ref"; then ok "per-upstream ref present: ${ref##*/}"; else no "missing per-upstream ref: $ref"; fi
 done
 
-# --- N1 guard: pinned subchart tags must be self-warning and must NOT drift
-# from the airgap-image-manifest baseline. This is the check that would have
-# caught v0.1.1 silently hard-pinning tags with no verify warning.
-MANIFEST="$PLUGIN_DIR/data/guide-sections/airgap-image-manifest.md"
-# canonical pinned tag -> the exact ref that must appear in the manifest baseline.
-PIN_neo4j="library/neo4j:5.26.0"
-PIN_vault="hashicorp/vault:1.21.2"
-PIN_bci="bci/bci-base:15.7"
-
-echo "== manifest baseline lists each hard-pinned tag (single source of truth) =="
-for ref in "$PIN_neo4j" "$PIN_vault" "$PIN_bci"; do
-  if grep -qF "$ref" "$MANIFEST"; then ok "manifest baseline has $ref"
-  else no "manifest baseline MISSING $ref (overlay would drift from manifest)"; fi
+echo "== N1 pinned tags: self-warning + match manifest baseline =="
+if has "$REG" "x-airgap-pinned-tags-notice" && has "$REG" "Chart.lock"; then ok "overlay carries the pinned-tags verify warning"; else no "overlay missing pinned-tags verify warning"; fi
+for pair in "5.26.0 library/neo4j:5.26.0" "1.21.2 hashicorp/vault:1.21.2" "15.7 bci/bci-base:15.7"; do
+  set -- $pair; ver="$1"; mref="$2"
+  if has "$REG" "$ver" && has "$MANIFEST" "$mref"; then ok "pinned $ver matches manifest ($mref)"; else no "pinned $ver does not match manifest baseline"; fi
 done
 
-echo "== every pinned tag in the overlay is self-warning AND matches the manifest =="
-for f in "$FIXT"/expected/airgap-flat-mirror/values-registry.yaml \
-         "$FIXT"/expected/airgap-jfrog/values-registry.yaml; do
-  label="$(basename "$(dirname "$f")")/$(basename "$f")"
-  [ -f "$f" ] || { no "missing expected overlay: $label"; continue; }
-  # (b1) a visible verify-against-Chart.lock warning rides with the overlay.
-  if grep -q 'x-airgap-pinned-tags-notice' "$f" && grep -q 'Chart.lock' "$f"; then
-    ok "$label carries an x-airgap-pinned-tags-notice / Chart.lock warning"
-  else no "$label has NO verify-against-Chart.lock warning for its pinned tags"; fi
-  # (b2) each pinned version appears in the overlay AND equals the manifest ref.
-  for pair in "neo4j 5.26.0 $PIN_neo4j" "vault 1.21.2 $PIN_vault" "bci 15.7 $PIN_bci"; do
-    set -- $pair; name="$1"; ver="$2"; ref="$3"
-    if grep -qF "$ver" "$f" && grep -qF "$ref" "$MANIFEST"; then
-      ok "$label pins $name $ver, matching the manifest"
-    else no "$label pins $name $ver but it does NOT match the manifest baseline"; fi
-  done
+echo "== MISSED-2: seaweedfs identities pinned to <release>-seaweedfs-identities =="
+if has "$STO" "rw-airgap-seaweedfs-identities"; then ok "seaweedfs.s3.existingConfigSecret set to release-scoped identities Secret"; else no "seaweedfs identities Secret not wired (validate will fail-fast)"; fi
+
+echo "== MISSED-3/4: storage classes wired via the correct keys =="
+if grep -A4 'metricstore:' "$STO" | grep -q 'storageClassName'; then ok "metricstore uses persistence.storageClassName"; else no "metricstore still uses the ignored storageClass key"; fi
+for probe in "spilo:" "dataStorage:" "mode: dynamic" "master:"; do
+  if has "$STO" "$probe"; then ok "storage wires component ($probe)"; else no "storage missing component override ($probe)"; fi
+done
+if [ "$(grep -c 'standard-rwo' "$STO")" -ge 8 ]; then ok "chosen StorageClass wired into every stateful component"; else no "StorageClass not wired into all components"; fi
+
+echo "== MISSED-5/8: llmBootstrap + model_info.mode =="
+for probe in "llmBootstrap:" "provider:" "dimension: 1536" "mode: chat" "mode: embedding"; do
+  if has "$CLU" "$probe"; then ok "llm overlay has $probe"; else no "llm overlay missing $probe"; fi
 done
 
-echo "== catalog registry options declare the pinned-tags notice (structural guard) =="
-for opt in flat-mirror jfrog-per-upstream; do
-  if option_block "$opt" | grep -q 'x-airgap-pinned-tags-notice'; then
-    ok "$opt emits x-airgap-pinned-tags-notice"
-  else no "$opt lost its x-airgap-pinned-tags-notice (pinned tags would be silent again)"; fi
-done
+echo "== MISSED-6/7: codeCollections + cc-catalog repointed; ccCatalog auth =="
+if has "$REG" "dockerconfigjsonSecret: jcr-pull-secret"; then ok "ccCatalog.auth.dockerconfigjsonSecret wired"; else no "ccCatalog auth secret missing"; fi
+if grep -E 'imageRegistry:|image_registry:' "$REG" | grep -q 'ghcr\.io'; then no "codecollection registry still public ghcr.io"; else ok "every codecollection registry points at the mirror"; fi
+no_public "$STO" "values-storage.yaml"; no_public "$CLU" "values-cluster.yaml"
+
+echo "== RENDER (oracle): helm template fixtures with a NON-rw release =="
+CHART="${RWL_CHART_PATH:-/Users/rohitekbote/wd/code/github.com/runwhen/rwlight-helm/charts/runwhen-platform}"
+if command -v helm >/dev/null 2>&1 && [ -f "$CHART/Chart.yaml" ]; then
+  TMP="$(mktemp)"
+  if helm template rw-airgap "$CHART" -f "$CHART/values.yaml" -f "$REG" -f "$STO" -f "$CLU" \
+       --set neo4j.disableLookups=true --set qdrant.disableLookups=true >"$TMP" 2>"$TMP.err"; then
+    ok "helm template succeeds (non-rw release; no validate fail-fast)"
+    if grep -nE '(image|customImage): *"?('"$PUBLIC_HOSTS"')' "$TMP" >/dev/null; then
+      no "rendered manifests contain a public image ref"; else ok "every rendered image ref is on the mirror"; fi
+  else
+    no "helm template FAILED: $(head -1 "$TMP.err")"
+  fi
+  rm -f "$TMP" "$TMP.err"
+else
+  echo "  SKIP: chart not found at \$RWL_CHART_PATH ($CHART) — static checks only"
+fi
 
 echo ""
 echo "airgap-registry: $PASS passed, $FAIL failed"
