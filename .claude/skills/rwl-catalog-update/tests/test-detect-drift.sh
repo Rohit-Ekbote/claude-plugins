@@ -21,4 +21,12 @@ rm -rf "$OUT"
 echo "== usage error without --chart =="
 bash "$DET" --out /tmp/x >/dev/null 2>&1; [ "$?" = "2" ] && ok "exit 2 without --chart" || no "wrong exit"
 
+echo "== chartCompat: a chart below the >= floor is also flagged =="
+OUTLO="$(mktemp -d)"; CHLO="$OUTLO/chart"; mkdir -p "$CHLO"
+printf 'apiVersion: v2\nname: runwhen-platform\nversion: 0.1.5\n' > "$CHLO/Chart.yaml"
+bash "$DET" --chart "$CHLO" --out "$OUTLO" >/dev/null 2>&1
+row="$(field chartCompat "$OUTLO/findings.tsv")"
+echo "$row" | grep -q "^decide" && ok "below-floor 0.1.5 flagged decide" || no "below-floor not flagged"
+rm -rf "$OUTLO"
+
 echo ""; echo "detect-drift: $PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]
