@@ -132,6 +132,111 @@ bash "$LINT" "$TMPD/cat.yaml" "$TMPD/data" >/dev/null 2>&1
 assert_rc "$?" "0" "well-formed consumers passes"
 rm -rf "$TMPD"
 
+echo "== catalog-lint: postgresql.spilo.* without a kind:spilo pin is rejected =="
+TMPS="$(mktemp -d)"; mkdir -p "$TMPS/data/guide-sections" "$TMPS/data/known-issues"
+cat > "$TMPS/cat.yaml" <<'YML'
+axes:
+  - id: demo
+    title: Demo
+    question: "Demo?"
+    options:
+      - id: on
+        label: "On"
+        overlay: values-storage.yaml
+        emits:
+          postgresql:
+            spilo:
+              persistence:
+                kind: pvc
+        guide_sections: []
+        known_issues: []
+YML
+bash "$LINT" "$TMPS/cat.yaml" "$TMPS/data" >/dev/null 2>&1
+assert_rc "$?" "1" "spilo.* emitted with no option pinning postgresql.kind: spilo is rejected"
+rm -rf "$TMPS"
+
+echo "== catalog-lint: llmGateway.deploy:true without models/configMapName is rejected =="
+TMPL1="$(mktemp -d)"; mkdir -p "$TMPL1/data/guide-sections" "$TMPL1/data/known-issues"
+cat > "$TMPL1/cat.yaml" <<'YML'
+axes:
+  - id: demo
+    title: Demo
+    question: "Demo?"
+    options:
+      - id: on
+        label: "On"
+        overlay: values-cluster.yaml
+        emits:
+          llmGateway:
+            deploy: true
+        guide_sections: []
+        known_issues: []
+YML
+bash "$LINT" "$TMPL1/cat.yaml" "$TMPL1/data" >/dev/null 2>&1
+assert_rc "$?" "1" "llmGateway.deploy:true with neither models[] nor configMapName is rejected"
+rm -rf "$TMPL1"
+
+echo "== catalog-lint: non-boolean required: on a param is rejected =="
+TMPR="$(mktemp -d)"; mkdir -p "$TMPR/data/guide-sections" "$TMPR/data/known-issues"
+cat > "$TMPR/cat.yaml" <<'YML'
+axes:
+  - id: demo
+    title: Demo
+    question: "Demo?"
+    options:
+      - id: on
+        label: "On"
+        overlay: values-cluster.yaml
+        params:
+          - { id: p, prompt: "x", required: "yes" }
+        emits: { foo: bar }
+        guide_sections: []
+        known_issues: []
+YML
+bash "$LINT" "$TMPR/cat.yaml" "$TMPR/data" >/dev/null 2>&1
+assert_rc "$?" "1" "non-boolean required: is rejected"
+rm -rf "$TMPR"
+
+echo "== catalog-lint: missing prereqs ref is rejected =="
+TMPP1="$(mktemp -d)"; mkdir -p "$TMPP1/data/guide-sections" "$TMPP1/data/known-issues" "$TMPP1/data/prerequisites"
+cat > "$TMPP1/cat.yaml" <<'YML'
+axes:
+  - id: demo
+    title: Demo
+    question: "Demo?"
+    options:
+      - id: on
+        label: "On"
+        overlay: values-cluster.yaml
+        emits: { foo: bar }
+        guide_sections: []
+        known_issues: []
+        prereqs: [does-not-exist]
+YML
+bash "$LINT" "$TMPP1/cat.yaml" "$TMPP1/data" >/dev/null 2>&1
+assert_rc "$?" "1" "missing prereqs reference is rejected"
+rm -rf "$TMPP1"
+
+echo "== catalog-lint: orphan prerequisites file is rejected =="
+TMPP2="$(mktemp -d)"; mkdir -p "$TMPP2/data/guide-sections" "$TMPP2/data/known-issues" "$TMPP2/data/prerequisites"
+echo "# orphan" > "$TMPP2/data/prerequisites/unused.md"
+cat > "$TMPP2/cat.yaml" <<'YML'
+axes:
+  - id: demo
+    title: Demo
+    question: "Demo?"
+    options:
+      - id: on
+        label: "On"
+        overlay: values-cluster.yaml
+        emits: {}
+        guide_sections: []
+        known_issues: []
+YML
+bash "$LINT" "$TMPP2/cat.yaml" "$TMPP2/data" >/dev/null 2>&1
+assert_rc "$?" "1" "orphan prerequisites file is rejected"
+rm -rf "$TMPP2"
+
 echo ""
 echo "catalog-lint: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

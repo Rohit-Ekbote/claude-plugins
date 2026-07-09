@@ -1,10 +1,10 @@
-# security-posture: hardened (runAsUid=65534, runAsGid=65534)
+# Expected values-posture.yaml — STOXX hardened repro.
 global:
   podSecurityContext:
     runAsNonRoot: true
-    runAsUser: 65534
-    runAsGroup: 65534
-    fsGroup: 65534
+    runAsUser: "65534"
+    runAsGroup: "65534"
+    fsGroup: "65534"
     seccompProfile:
       type: RuntimeDefault
   containerSecurityContext:

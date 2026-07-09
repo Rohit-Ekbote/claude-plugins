@@ -11,9 +11,11 @@ answers:
   registry-routing: { option: mirrored-per-upstream, registryHost: artifactory.corp.example, pullSecretName: jcr-pull-secret, helmMirrorUrl: "https://artifactory.corp.example/artifactory/helm" }
   storage-persistence: { option: pvc, storageClass: standard-rwo }
   security-posture: { option: default }
+  ingress-snippets: { option: snippets-allowed }
   object-storage: { option: seaweedfs, releaseName: rw-airgap }
   rbac-identity: { option: chart-managed }
   internal-ca: { option: public-ca }
+  runwhen-ca: { option: cert-manager-present }
   llm-endpoint: { option: internal-openai, llmBaseUrl: "https://llm.internal/v1", chatModelName: customer-chat, chatModel: "openai/gpt-4o", bgModelName: customer-bg, bgModel: "openai/gpt-4o-mini", embeddingModelName: customer-embedding, embeddingModel: "openai/text-embedding-3-small", llmApiKeySecret: rw-vendor-llm, llmApiKeyEnv: LLM_API_KEY, llmStaffEmail: "default-sa@runwhen.com", llmProviderName: customer-litellm, embeddingDimension: 1536 }
   subcharts: { option: bundled-all }
   optional-components: []

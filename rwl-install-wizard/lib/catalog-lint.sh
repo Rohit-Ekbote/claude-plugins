@@ -5,10 +5,11 @@
 # Exit:  0 = clean, 1 = problems found (printed to stderr)
 #
 # Heuristic, line-oriented checks (bash 3.2, no YAML parser). Relies on the
-# authoring rule that `guide_sections:` / `known_issues:` are single-line inline
-# arrays, e.g.  guide_sections: [a, b]
+# authoring rule that `guide_sections:` / `known_issues:` / `prereqs:` are
+# single-line inline arrays, e.g.  guide_sections: [a, b]
 #   1. Every id in guide_sections has data/guide-sections/<id>.md
 #   2. Every id in known_issues  has data/known-issues/<id>.md
+#   2b. Every id in prereqs      has data/prerequisites/<id>.md
 #   3. No orphan (unreferenced) .md files in those dirs
 #   4. No inline secret-shaped content in the catalog (reuses secret-guard.sh)
 #   5. Every `- id:` block declares at least one of label/title/question
@@ -49,6 +50,7 @@ check_refs() {
 }
 check_refs guide_sections guide-sections
 check_refs known_issues known-issues
+check_refs prereqs prerequisites
 
 # 3: orphan files.
 check_orphans() {
@@ -70,6 +72,7 @@ $base
 }
 check_orphans guide_sections guide-sections
 check_orphans known_issues known-issues
+check_orphans prereqs prerequisites
 
 # 4: no inline secret-shaped content in the catalog.
 if ! bash "$GUARD" "$CATALOG" >/dev/null 2>&1; then
@@ -100,6 +103,9 @@ if ! ruby -ryaml -e '
   cat = YAML.load_file(ARGV[0]); bad = []
   walk = lambda do |pl|
     (pl || []).each do |p|
+      if p.is_a?(Hash) && p.key?("required") && ![true, false].include?(p["required"])
+        bad << (p["id"] || "?"); next
+      end
       next unless p.is_a?(Hash) && p["consumers"]
       c = p["consumers"]
       unless c.is_a?(Hash) && (c.keys - ["equals", "contains"]).empty?
@@ -116,6 +122,45 @@ if ! ruby -ryaml -e '
   abort("bad consumers: #{bad.uniq.join(", ")}") unless bad.empty?
 ' "$CATALOG" 2>/dev/null; then
     fail "malformed consumers: metadata (equals/contains must be non-empty arrays of key names)"
+fi
+
+# Check 7 ([6]): if ANY option emits postgresql.spilo.*, at least one option must
+# pin postgresql.kind: spilo. The chart default is spilo (values.yaml:623) but the
+# wizard must emit it explicitly so a byo/external overlay layered on top is the
+# ONLY thing that flips kind — never an implicit default.
+if ! ruby -ryaml -e '
+  cat = YAML.load_file(ARGV[0])
+  spilo = false; pinned = false
+  (cat["axes"] || []).each do |a|
+    (a["options"] || []).each do |o|
+      em = o["emits"]; next unless em.is_a?(Hash)
+      pg = em["postgresql"]; next unless pg.is_a?(Hash)
+      spilo = true if pg["spilo"]
+      pinned = true if pg["kind"] == "spilo"
+    end
+  end
+  abort("postgresql.spilo.* emitted but no option pins postgresql.kind: spilo") if spilo && !pinned
+' "$CATALOG" 2>/dev/null; then
+    fail "postgresql.spilo.* emitted but no option pins postgresql.kind: spilo"
+fi
+
+# Check 8 ([1]): the chart fail-fasts (templates/llm-gateway/configmap.yaml) when
+# llmGateway.deploy=true and neither models[] nor configMapName is set. Enforce the
+# XOR at emit time so no option can leave that latent hard-fail.
+if ! ruby -ryaml -e '
+  cat = YAML.load_file(ARGV[0]); bad = []
+  (cat["axes"] || []).each do |a|
+    (a["options"] || []).each do |o|
+      em = o["emits"]; next unless em.is_a?(Hash)
+      lg = em["llmGateway"]; next unless lg.is_a?(Hash) && lg["deploy"] == true
+      has_models = lg["models"].is_a?(Array) && !lg["models"].empty?
+      has_cmn    = lg["configMapName"].is_a?(String) && !lg["configMapName"].strip.empty?
+      bad << o["id"] unless has_models ^ has_cmn
+    end
+  end
+  abort("llmGateway.deploy:true requires models[] XOR configMapName: #{bad.join(", ")}") unless bad.empty?
+' "$CATALOG" 2>/dev/null; then
+    fail "an option sets llmGateway.deploy:true without exactly one of models[] / configMapName"
 fi
 
 exit "$problems"

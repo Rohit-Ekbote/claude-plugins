@@ -1,0 +1,16 @@
+schemaVersion: 1
+chartCompat: ">=0.2.37 <0.3"
+generatedAt: "2026-07-09"
+# STOXX repro: the combination whose overlays failed helm template on 0.2.59.
+# hardened posture + bundled spilo + snippets-off + LLM deferred + ingress w/ class.
+# Renders clean now and carries the corrective values (kind:spilo, deploy:false,
+# spilo rootfs relaxed, runner-metric-proxy renderWithoutSnippet).
+answers:
+  cluster-shape: { option: clusterIssuer, domain: stoxx.example.com, ingressClass: nginx, tlsClusterIssuer: letsencrypt-prod }
+  security-posture: { option: hardened, runAsUid: "65534", runAsGid: "65534" }
+  ingress-snippets: { option: snippets-blocked }
+  storage-persistence: { option: pvc, storageClass: standard-rwo }
+  object-storage: { option: seaweedfs, releaseName: rw-stoxx }
+  subcharts: { option: bundled-all }
+  runwhen-ca: { option: cert-manager-present }
+  llm-endpoint: { option: configure-later }

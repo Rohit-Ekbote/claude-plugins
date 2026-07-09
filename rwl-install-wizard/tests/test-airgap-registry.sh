@@ -115,6 +115,7 @@ if command -v helm >/dev/null 2>&1 && [ -f "$CHART/Chart.yaml" ]; then
   # overlays must render as an operator installs them, with no extra flags.
   if helm template rw-airgap "$CHART" -f "$CHART/values.yaml" -f "$REG" -f "$STO" -f "$CLU" >"$TMP" 2>"$TMP.err"; then
     ok "helm template succeeds (non-rw release; no validate fail-fast)"
+    if has "$CLU" "kind: spilo"; then ok "[6] airgap cluster overlay pins postgresql.kind: spilo"; else no "[6] airgap overlay does not pin postgresql.kind: spilo"; fi
     if grep -nE '(image|customImage): *"?('"$PUBLIC_HOSTS"')' "$TMP" >/dev/null; then
       no "rendered manifests contain a public image ref"; else ok "every rendered image ref is on the mirror"; fi
     # value-at-consumer: airgap profile (only llmBaseUrl -> api_base applies; datastores are bundled)
@@ -161,6 +162,19 @@ if command -v helm >/dev/null 2>&1 && [ -f "$CHART/Chart.yaml" ]; then
     fi
   else
     no "byo-datastores helm template FAILED: $(head -1 "$TMP.err")"
+  fi
+  echo "== RENDER (oracle): STOXX hardened repro — llm off + spilo + snippets off =="
+  SX="$SCRIPT_DIR/fixtures/expected/stoxx-hardened"
+  if helm template rw-stoxx "$CHART" -f "$CHART/values.yaml" \
+       -f "$SX/values-cluster.yaml" -f "$SX/values-storage.yaml" -f "$SX/values-posture.yaml" \
+       >"$TMP" 2>"$TMP.err"; then
+    ok "[1] STOXX combo renders (llmGateway.deploy:false → no model_list fail-fast)"
+    # [5] the Spilo container must NOT inherit the global readOnlyRootFilesystem:true.
+    if grep -q 'readOnlyRootFilesystem: false' "$TMP"; then ok "[5] Spilo container relaxes readOnlyRootFilesystem"; else no "[5] Spilo readOnlyRootFilesystem override did not reach the render"; fi
+    # [4] runner-metric-proxy Ingress renders without snippets.
+    if grep -q 'kind: Ingress' "$TMP" && grep -q 'runner-metrics' "$TMP"; then ok "[4] runner-metric-proxy Ingress rendered without snippets"; else no "[4] runner-metric-proxy Ingress missing under snippets-blocked"; fi
+  else
+    no "[1/4/5] STOXX hardened combo FAILED to render: $(head -1 "$TMP.err")"
   fi
   rm -f "$TMP" "$TMP.err"
 else

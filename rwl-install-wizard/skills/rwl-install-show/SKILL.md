@@ -30,6 +30,9 @@ Read-only. Never modifies anything, never runs cluster commands.
    - Overlays: every `values-*.yaml` present, with a one-line note of which axis
      produced each (from the overlay file header).
    - Guides: `USER-GUIDE.md`, `DEBUG-GUIDE.md` (with their section counts).
+   - Prerequisites: `PREREQUISITES.md` if present — summarize its section
+     headings (the cluster dependencies + pre-created secrets the operator must
+     satisfy before installing).
 
    If `rwl-install-out/` is missing, note that the kit has not been generated yet
    and suggest running `/rwl-install`.
@@ -37,7 +40,9 @@ Read-only. Never modifies anything, never runs cluster commands.
 4. Print the exact install command line the kit implies, reading the ordered
    `-f` overlay list from `USER-GUIDE.md`'s "Install day" section. Do NOT invent
    secret values; show secret creation only as the `<PLACEHOLDER>` templates
-   already in the guide.
+   already in the guide. If `PREREQUISITES.md` is present, also point the operator
+   at its pre-flight render-gate command (to dry-run the overlays before install)
+   and remind them the prerequisites must be satisfied first.
 
 5. Never print the contents of any secret. This skill only reads non-sensitive
    profile + generated files (which are themselves secret-free by construction).

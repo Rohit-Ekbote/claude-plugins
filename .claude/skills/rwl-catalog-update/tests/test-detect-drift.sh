@@ -80,6 +80,16 @@ ruby -rjson -e 'j=JSON.parse(File.read(ARGV[0])); abort unless j.key?("autoFixab
 grep -q "Needs decision" "$OUT5/drift-report.md" && ok "md has needs-decision section" || no "md missing section"
 rm -rf "$OUT5"
 
+echo "== report assembly is locale-safe: a non-ASCII detail under LC_ALL=C still writes the report =="
+# Chart fail messages + the detector's own details use em-dashes (U+2014). Under
+# LC_ALL=C Ruby reads as US-ASCII and split() raises 'invalid byte sequence',
+# leaving no report. assemble-report must read UTF-8 regardless of locale.
+OUT5L="$(mktemp -d)"
+printf 'decide\tfail\t\tnew inline chart fail: tag is empty \xE2\x80\x94 pin it\tf.tpl\t\t\n' > "$OUT5L/findings.tsv"
+LC_ALL=C ruby "$SKILL/assemble-report.rb" "$OUT5L/findings.tsv" "$OUT5L" >/dev/null 2>"$OUT5L/err"
+{ [ -f "$OUT5L/drift-report.md" ] && [ ! -s "$OUT5L/err" ]; } && ok "assemble-report handles non-ASCII under LC_ALL=C" || no "assemble-report crashes on non-ASCII under LC_ALL=C: $(head -1 "$OUT5L/err")"
+rm -rf "$OUT5L"
+
 echo "== tag drift: bci-base bumped in chart values.yaml is flagged =="
 OUTB="$(mktemp -d)"; CHB="$OUTB/chart"; mkdir -p "$CHB"
 printf 'apiVersion: v2\nname: runwhen-platform\nversion: 0.2.54\n' > "$CHB/Chart.yaml"
@@ -123,5 +133,24 @@ if command -v helm >/dev/null 2>&1 && [ -f "$REALCHART/values.yaml" ]; then
 else
   ok "SKIP consumer check (no chart/helm)"
 fi
+
+echo "== inline-fail drift: a NEW fail is flagged, a baselined one is not =="
+OUTF="$(mktemp -d)"; CHF="$OUTF/chart"; mkdir -p "$CHF/templates"
+printf 'apiVersion: v2\nname: runwhen-platform\nversion: 0.2.59\n' > "$CHF/Chart.yaml"
+cp "$FIX/helpers-extra-fail.tpl" "$CHF/templates/_helpers.tpl"
+bash "$DET" --chart "$CHF" --out "$OUTF" >/dev/null 2>&1
+if grep -q $'\tfail\t.*BRAND NEW GUARD' "$OUTF/findings.tsv"; then ok "new inline fail flagged"; else no "new inline fail not flagged"; fi
+if grep -q 'objectStorage.kind=external requires' "$OUTF/findings.tsv"; then no "baselined fail wrongly re-flagged"; else ok "baselined fail not re-flagged"; fi
+# The fixture has 6 fail lines total: 5 NEW (BRAND NEW GUARD, Zoo.enabled, the
+# underscore-prefixed, digit-prefixed, and mixed-case+underscore ones) and 1
+# already-baselined (objectStorage.kind=external...). Their byte order (what
+# Ruby's Array#sort produces) differs from en_US.UTF-8 collation order, so this
+# exact-count assertion catches a regression to comparing an un-shell-sorted
+# chart operand against the locale-sorted baseline via `comm` (drops/duplicates
+# entries under a non-C locale) even when the two "flagged / not flagged"
+# checks above happen to still pass.
+foundf="$(grep -c $'\tfail\t' "$OUTF/findings.tsv")"
+[ "$foundf" = "5" ] && ok "exactly 5 NEW fails flagged (collation-safe count)" || no "wrong NEW fail count: $foundf (want 5)"
+rm -rf "$OUTF"
 
 echo ""; echo "detect-drift: $PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]

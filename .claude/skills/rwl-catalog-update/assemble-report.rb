@@ -1,6 +1,11 @@
 #!/usr/bin/env ruby
 # assemble-report.rb <findings.tsv> <out-dir>
 require 'json'
+# Read external text as UTF-8 regardless of the shell locale. Under LC_ALL=C
+# (common in CI) Ruby's default external encoding is US-ASCII, and split/regex
+# then raise "invalid byte sequence" on the em-dashes that chart fail messages
+# and the detector's own finding details contain — leaving no report written.
+Encoding.default_external = Encoding::UTF_8
 tsv, outdir = ARGV
 cols = %w[bucket kind option detail evidence current chart]
 auto = []; decide = []

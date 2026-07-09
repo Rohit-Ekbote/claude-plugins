@@ -63,5 +63,14 @@ ruby "$LIB/check-consumers.rb" "$CAT" "$ANS" "$BAD" --present-only >/dev/null 2>
 [ "$?" != "0" ] && ok "present-but-wrong still fails under --present-only" || no "present-but-wrong must still fail"
 rm -f "$ABS"
 
+echo "== locale-safe: a non-ASCII byte in the render under LC_ALL=C does not crash =="
+# Helm manifests carry non-ASCII bytes (em-dashes, U+2014, in comments/messages).
+# Under LC_ALL=C Ruby reads as US-ASCII and consumer-values' regex raises
+# 'invalid byte sequence'. check-consumers must read the render as UTF-8.
+UTF="$(mktemp)"; printf 'data:\n  # note: value below \xE2\x80\x94 verified\n  VAULT_URL: "https://vault.example.com"\n' > "$UTF"
+LC_ALL=C ruby "$LIB/check-consumers.rb" "$CAT" "$ANS" "$UTF" --present-only >/dev/null 2>"$UTF.err"
+grep -q 'invalid byte sequence' "$UTF.err" && no "check-consumers crashes on non-ASCII under LC_ALL=C: $(head -1 "$UTF.err")" || ok "check-consumers reads non-ASCII render under LC_ALL=C"
+rm -f "$UTF" "$UTF.err"
+
 rm -f "$CAT" "$ANS" "$GOOD" "$BAD" "$EMPTY"
 echo ""; echo "check-consumers: $PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]

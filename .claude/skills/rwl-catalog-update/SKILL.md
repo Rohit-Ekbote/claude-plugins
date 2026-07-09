@@ -29,6 +29,14 @@ NEVER commits — you review the diff and commit.
 
 3. **Walk each needs-decision item** (`needsDecision[]`) ONE AT A TIME. For each, show the evidence (`evidence` file), your recommendation, and ask `apply / edit / skip`:
    - `kind: validator` — a new fail-fast. Propose the question/param + emit to satisfy it (model it on the chart's `values-example-*.yaml`). Only add after the maintainer approves.
+   - `kind: fail` — a new inline chart `{{ fail }}` guard (an install-blocking
+     invariant) the catalog may not satisfy. Confirm the catalog produces values
+     that pass it — model a question/param/emit if not (mirror the chart's
+     `values-example-*.yaml`). Only after the maintainer approves, then
+     re-generate the baseline from the updated chart —
+     `ruby extract-fails.rb <chart>/templates | cut -f1 | sort -u > fails.baseline`
+     — rather than hand-copying the finding text (the report detail is
+     truncated). Like validators, structural changes are maintainer-approved.
    - `kind: render` — an option no longer renders. Likely a renamed/removed key; propose the mapping from the chart, or propose deprecating the option.
    - `kind: publicRef` — an option leaks a public ref against this chart; propose the per-upstream override that fixes it.
    - `kind: chartCompat` (decide bucket) — the chart version is OUTSIDE the catalog's `chartCompat` range. Do NOT bump the range as a reflex: first reconcile all other drift and confirm the verification gate (step 4) is green, THEN widen `chartCompat:` in `knob-catalog.yaml` (and its header note) to include the new version — that assertion means "the catalog now supports this chart."
@@ -39,6 +47,28 @@ NEVER commits — you review the diff and commit.
    If anything is red, keep fixing; if a needs-decision item is unresolved, STOP and report — do not present a partial refresh as done.
 
 5. **Summarize & hand off.** Print the `git status` + a per-change summary grouped by MISSED-style reason. Tell the maintainer to review, commit, and bump `.claude-plugin/marketplace.json` to match `plugin.json`. Do NOT commit.
+
+## Friction classes the render check cannot catch
+
+`check_render` renders each option in isolation with dummy values; a green render
+does NOT mean the option is install-safe. Before trusting a "no drift" result,
+reason about these classes by hand (each learned from the 0.2.59 STOXX failure):
+
+- **Inline `{{ fail }}` invariants.** `check_fails` now surfaces *new* ones as
+  `kind: fail` findings — but you must still model each into the catalog (or
+  confirm it is already satisfied). The render check actively hides some: it
+  disables `llmGateway` to work around the llm-gateway model_list fail.
+- **Implicit chart defaults.** An option can render only because it relies on a
+  chart default (e.g. `postgresql.kind` defaulting to `spilo`). Pin the
+  discriminator explicitly so a later overlay is the only thing that can change
+  it. (Finding [6].)
+- **Runtime-only failures — invisible to `helm template`.** `readOnlyRootFilesystem:
+  true` renders fine but breaks Spilo/Patroni at runtime ([5]); a hardened
+  ingress controller rejects `allowSnippetAnnotations` snippets at admission ([4]).
+  Neither shows up in a template render.
+- **Posture applied to stateful subcharts.** A global security context that is
+  correct for first-party pods can be wrong for a subchart (Spilo needs a
+  writable rootfs) — the chart may replace the global context per-subchart. ([5].)
 
 ## Hard rules
 - Never edit `rwl-install-wizard/skills/`.
