@@ -68,7 +68,6 @@ axes:
           ingress:
             enabled: true
             className: "<INGRESS_CLASS>"
-            allowSnippetAnnotations: true
             tls:
               enabled: true
               existingSecret: ""
@@ -91,7 +90,6 @@ axes:
           ingress:
             enabled: true
             className: "<INGRESS_CLASS>"
-            allowSnippetAnnotations: true
             annotations:
               cert-manager.io/issuer: "<TLS_ISSUER>"
             tls:
@@ -116,7 +114,6 @@ axes:
           ingress:
             enabled: true
             className: "<INGRESS_CLASS>"
-            allowSnippetAnnotations: true
             tls:
               enabled: true
               existingSecret: "<TLS_SECRET>"
@@ -526,6 +523,39 @@ axes:
                 drop: ["ALL"]
         guide_sections: [nonroot-uid, readonly-rootfs, webhook-labels-securitycontext]
         known_issues: [vault-init-home-perms, llm-gateway-nonroot-prisma, mass-run-as-root-failures]
+
+  - id: ingress-snippets
+    title: Ingress snippet annotations
+    # dependsOn: applies only when cluster-shape is an Ingress option (clusterIssuer/
+    # issuer/byoSecret), NOT gatewayApi. SKILL skips this axis under Gateway API.
+    # Default: SKILL pre-selects snippets-blocked when security-posture=hardened.
+    question: "Does your ingress controller allow nginx snippet annotations? Hardened / CVE-2021-25742-patched ingress-nginx rejects them (allow-snippet-annotations=false has been the controller default since v1.9). If you chose the hardened security posture, answer No unless you have explicitly re-enabled snippets."
+    options:
+      - id: snippets-allowed
+        label: "Yes — controller permits snippet annotations (chart-managed mTLS path for runner metrics)"
+        overlay: values-cluster.yaml
+        emits:
+          ingress:
+            allowSnippetAnnotations: true
+        guide_sections: []
+        known_issues: []
+      - id: snippets-blocked
+        label: "No — controller rejects snippets; render the runner-metric-proxy Ingress without them"
+        overlay: values-cluster.yaml
+        # [4] With snippets off the chart drops the runner-metric-proxy Ingress
+        # unless renderWithoutSnippet=true, and cnValidation must be disabled (it
+        # depends on the snippet annotations). See runner-metric-proxy/ingress.yaml.
+        emits:
+          ingress:
+            allowSnippetAnnotations: false
+          runnerMetricProxy:
+            cnValidation:
+              enabled: false
+            ingress:
+              renderWithoutSnippet: true
+        guide_sections: []
+        known_issues: [alert-ingestor-snippet-annotation]
+        prereqs: [snippet-annotations]
 
   - id: object-storage
     title: Object storage backend

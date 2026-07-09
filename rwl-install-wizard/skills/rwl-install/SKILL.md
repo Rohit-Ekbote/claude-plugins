@@ -73,6 +73,13 @@ Secrets are wired by name (`existingSecret`/`*Ref`) only.
      option's `emits:` into the target overlay(s). Store the answer as a list of
      selected option ids under that axis. (Single-select axes are unchanged: one
      option id per axis.)
+   - **ingress-snippets default + conflict.** When presenting the ingress-snippets
+     axis, pre-select `snippets-blocked` if the operator chose the hardened
+     security posture (a hardened/patched ingress-nginx rejects snippets);
+     otherwise pre-select `snippets-allowed`. If the operator selected the
+     alert-ingestor optional component, it REQUIRES snippet-capable ingress —
+     surface the conflict and ask them to either drop alert-ingestor or confirm a
+     snippet-capable controller (`snippets-allowed`) before generating.
 
 4. **Write the profile** to `.claude/rwl-install-profile.yaml` (schemaVersion: 1,
    chartCompat, generatedAt = today, answers map). Save even a partial profile

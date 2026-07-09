@@ -11,6 +11,7 @@ answers:
   registry-routing: { option: mirrored-per-upstream, registryHost: artifactory.corp.example, pullSecretName: jcr-pull-secret, helmMirrorUrl: "https://artifactory.corp.example/artifactory/helm" }
   storage-persistence: { option: pvc, storageClass: standard-rwo }
   security-posture: { option: default }
+  ingress-snippets: { option: snippets-allowed }
   object-storage: { option: seaweedfs, releaseName: rw-airgap }
   rbac-identity: { option: chart-managed }
   internal-ca: { option: public-ca }
