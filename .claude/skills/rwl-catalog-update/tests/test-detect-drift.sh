@@ -124,4 +124,13 @@ else
   ok "SKIP consumer check (no chart/helm)"
 fi
 
+echo "== inline-fail drift: a NEW fail is flagged, a baselined one is not =="
+OUTF="$(mktemp -d)"; CHF="$OUTF/chart"; mkdir -p "$CHF/templates"
+printf 'apiVersion: v2\nname: runwhen-platform\nversion: 0.2.59\n' > "$CHF/Chart.yaml"
+cp "$FIX/helpers-extra-fail.tpl" "$CHF/templates/_helpers.tpl"
+bash "$DET" --chart "$CHF" --out "$OUTF" >/dev/null 2>&1
+if grep -q $'\tfail\t.*BRAND NEW GUARD' "$OUTF/findings.tsv"; then ok "new inline fail flagged"; else no "new inline fail not flagged"; fi
+if grep -q 'objectStorage.kind=external requires' "$OUTF/findings.tsv"; then no "baselined fail wrongly re-flagged"; else ok "baselined fail not re-flagged"; fi
+rm -rf "$OUTF"
+
 echo ""; echo "detect-drift: $PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]

@@ -59,6 +59,19 @@ check_validators() {
   done
 }
 
+check_fails() {
+  local tdir="$CHART/templates"; [ -d "$tdir" ] || return 0
+  local baseline="$SKILL_DIR/fails.baseline"
+  ruby "$SKILL_DIR/extract-fails.rb" "$tdir" > "$OUT/fails.chart.full"
+  cut -f1 "$OUT/fails.chart.full" > "$OUT/fails.chart"
+  # signatures present in the chart but not the baseline = newly added invariants
+  comm -13 <(sort -u "$baseline" 2>/dev/null) "$OUT/fails.chart" | while IFS= read -r sig; do
+    [ -n "$sig" ] || continue
+    local file; file="$(awk -F'\t' -v s="$sig" '$1==s{print $2; exit}' "$OUT/fails.chart.full")"
+    emit_finding decide fail "" "new inline chart fail: ${sig:0:140}" "$tdir/$file" "" ""
+  done
+}
+
 # Read catalog pinnedTags via ruby (neo4j/vault/bciBaseHelmTest -> version string).
 catalog_pinned() {
   ruby -ryaml -e '
@@ -145,6 +158,7 @@ check_render() {
 
 check_chartcompat
 check_validators
+check_fails
 check_tags
 check_render
 ruby "$SKILL_DIR/assemble-report.rb" "$FINDINGS" "$OUT"

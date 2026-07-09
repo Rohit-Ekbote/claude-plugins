@@ -1,0 +1,22 @@
+The legacy `minio:` values block is no longer supported. Remove `minio.*` from your overlay and use `objectStorage.kind=seaweedfs` (default) or `objectStorage.kind=external`. See README for migration notes.
+global.trustBundle.enabled=true but global.trustBundle.existingSecret is empty. Set it to the name of a pre-created Secret in the release namespace (see values.yaml comment for the recipe).
+global.trustBundle.setEnvVars=true requires global.trustBundle.bundleFile to be set (the KEY inside existingSecret that holds the PEM bundle, e.g. \"ca-bundle.crt\"). The chart projects each Secret key as a file under mountPath, and bundleFile names the one to point SSL_CERT_FILE / REQUESTS_CA_BUNDLE / CURL_CA_BUNDLE / NODE_EXTRA_CA_CERTS / GIT_SSL_CAINFO at.
+global.utility.% is not configured
+llmBootstrap.enabled=true but the following fields are empty: %. Either set them in your overlay, load runwhen-platform/values-dev-runwhen.yaml (RW dev defaults), or set llmBootstrap.enabled=false to skip the Job.
+llmGateway.database.reset.enabled=true requires postgresql.kind=spilo (current: %). For bundled or external Postgres backends, drop and recreate the `litellm` database manually on the PG side, then set reset.enabled=false.
+llmGateway: either .Values.llmGateway.models[] must be non-empty (chart-rendered config) or .Values.llmGateway.configMapName must be set (BYO ConfigMap). With deploy=true the gateway cannot start without a model_list.
+objectStorage.kind=% is invalid. Must be one of: seaweedfs, external.
+objectStorage.kind=external requires objectStorage.external.host or objectStorage.external.internalHost.
+objectStorage.kind=minio is no longer supported. The bundled MinIO subchart was removed in 2026-05; use objectStorage.kind=seaweedfs (default) or objectStorage.kind=external. See README for migration notes.
+objectStorage.kind=seaweedfs requires seaweedfs.deploy=true (Chart.yaml subchart condition). Set seaweedfs.deploy: true.
+objectStorage.kind=seaweedfs requires seaweedfs.s3.existingConfigSecret to point at the chart-rendered identities Secret. Set seaweedfs.s3.existingConfigSecret: % in your values overlay.
+postgresql.kind=% is invalid. Must be one of: bundled, spilo, external.
+postgresql.kind=external requires postgresql.external.host to be set.
+postgresql.kind=spilo requires postgresql.spilo.replicas >= 1.
+postgresql.spilo.persistence.kind must be one of: pvc | ephemeral | emptyDir (got %)
+postgresql.spilo.persistence.kind=emptyDir requires postgresql.spilo.walg.enabled=true (no other recovery path exists when local PGDATA is wiped)
+qdrant: invalid configuration — deploy=false requires qdrant.external.url to be set. Either set deploy=true (in-cluster) or configure external.url.
+qdrant: invalid configuration — useSubchart=true is meaningless when deploy=false. Set useSubchart: false (and configure qdrant.external.url) to use external Qdrant.
+staff-bootstrap requires an email address: set llmBootstrap.staffUser.email or workspaceBootstrap.staffUser.email
+user-pages-v2.enabled=true but images.userPagesV2.tag is empty — pin a tag in your per-env values (the base chart ships no default; ui-v2 has no dated release yet)
+workspaceBootstrap.enabled=true requires a staff SA email — set llmBootstrap.staffUser.email or workspaceBootstrap.staffUser.email.
