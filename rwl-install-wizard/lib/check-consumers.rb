@@ -6,6 +6,11 @@
 # or include (contains) the answer value.
 require 'yaml'
 require_relative 'consumer-values'
+# Read external text (catalog, answers, helm render) as UTF-8 regardless of the
+# shell locale. Under LC_ALL=C (common in CI) Ruby's default external encoding is
+# US-ASCII, and consumer-values' regex scan then raises "invalid byte sequence"
+# on the non-ASCII bytes (em-dashes) helm manifests routinely contain.
+Encoding.default_external = Encoding::UTF_8
 
 catalog, answers_file, render_file = ARGV
 present_only = (ARGV[3] == "--present-only")

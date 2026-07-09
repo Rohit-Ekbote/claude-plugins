@@ -80,6 +80,16 @@ ruby -rjson -e 'j=JSON.parse(File.read(ARGV[0])); abort unless j.key?("autoFixab
 grep -q "Needs decision" "$OUT5/drift-report.md" && ok "md has needs-decision section" || no "md missing section"
 rm -rf "$OUT5"
 
+echo "== report assembly is locale-safe: a non-ASCII detail under LC_ALL=C still writes the report =="
+# Chart fail messages + the detector's own details use em-dashes (U+2014). Under
+# LC_ALL=C Ruby reads as US-ASCII and split() raises 'invalid byte sequence',
+# leaving no report. assemble-report must read UTF-8 regardless of locale.
+OUT5L="$(mktemp -d)"
+printf 'decide\tfail\t\tnew inline chart fail: tag is empty \xE2\x80\x94 pin it\tf.tpl\t\t\n' > "$OUT5L/findings.tsv"
+LC_ALL=C ruby "$SKILL/assemble-report.rb" "$OUT5L/findings.tsv" "$OUT5L" >/dev/null 2>"$OUT5L/err"
+{ [ -f "$OUT5L/drift-report.md" ] && [ ! -s "$OUT5L/err" ]; } && ok "assemble-report handles non-ASCII under LC_ALL=C" || no "assemble-report crashes on non-ASCII under LC_ALL=C: $(head -1 "$OUT5L/err")"
+rm -rf "$OUT5L"
+
 echo "== tag drift: bci-base bumped in chart values.yaml is flagged =="
 OUTB="$(mktemp -d)"; CHB="$OUTB/chart"; mkdir -p "$CHB"
 printf 'apiVersion: v2\nname: runwhen-platform\nversion: 0.2.54\n' > "$CHB/Chart.yaml"
