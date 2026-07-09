@@ -21,6 +21,9 @@ tailored user guide + debug guide for your exact install shape.
 - `.claude/rwl-install-profile.yaml` — your saved answers (re-runnable).
 - `rwl-install-out/values-*.yaml` — layered overlays.
 - `rwl-install-out/USER-GUIDE.md`, `rwl-install-out/DEBUG-GUIDE.md`.
+- `rwl-install-out/PREREQUISITES.md` — cluster prerequisites for your answers
+  (cert-manager, ingress controller, registry, secrets, StorageClass) plus a
+  copy-paste pre-flight render-gate command to run before installing.
 
 Targets chart versions `>=0.2.37 <0.3`. See
 `docs/superpowers/specs/2026-06-17-rwl-install-wizard-design.md` for design.

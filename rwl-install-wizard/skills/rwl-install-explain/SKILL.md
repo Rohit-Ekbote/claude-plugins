@@ -26,6 +26,10 @@ Read-only, conversational. No cluster access, no secrets.
    - **Why it matters / what breaks without it** — pull the linked
      `known_issues` entries from `${CLAUDE_PLUGIN_ROOT}/data/known-issues/<id>.md`
      and summarize the symptom→cause→fix.
+   - **Cluster prerequisites** — if an option declares `prereqs:`, summarize each
+     linked `${CLAUDE_PLUGIN_ROOT}/data/prerequisites/<id>.md` (the cluster
+     dependency the operator must satisfy before installing, e.g. cert-manager,
+     an ingress controller, mirror access). Note which params are `required:`.
    - **Related guide sections** by name.
 
 4. If the user asks about a raw chart knob not modeled as an axis, say so plainly
