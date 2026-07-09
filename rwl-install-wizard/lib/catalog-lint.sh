@@ -5,10 +5,11 @@
 # Exit:  0 = clean, 1 = problems found (printed to stderr)
 #
 # Heuristic, line-oriented checks (bash 3.2, no YAML parser). Relies on the
-# authoring rule that `guide_sections:` / `known_issues:` are single-line inline
-# arrays, e.g.  guide_sections: [a, b]
+# authoring rule that `guide_sections:` / `known_issues:` / `prereqs:` are
+# single-line inline arrays, e.g.  guide_sections: [a, b]
 #   1. Every id in guide_sections has data/guide-sections/<id>.md
 #   2. Every id in known_issues  has data/known-issues/<id>.md
+#   2b. Every id in prereqs      has data/prerequisites/<id>.md
 #   3. No orphan (unreferenced) .md files in those dirs
 #   4. No inline secret-shaped content in the catalog (reuses secret-guard.sh)
 #   5. Every `- id:` block declares at least one of label/title/question
@@ -49,6 +50,7 @@ check_refs() {
 }
 check_refs guide_sections guide-sections
 check_refs known_issues known-issues
+check_refs prereqs prerequisites
 
 # 3: orphan files.
 check_orphans() {
@@ -70,6 +72,7 @@ $base
 }
 check_orphans guide_sections guide-sections
 check_orphans known_issues known-issues
+check_orphans prereqs prerequisites
 
 # 4: no inline secret-shaped content in the catalog.
 if ! bash "$GUARD" "$CATALOG" >/dev/null 2>&1; then

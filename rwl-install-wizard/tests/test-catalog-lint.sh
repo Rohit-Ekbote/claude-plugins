@@ -197,6 +197,46 @@ bash "$LINT" "$TMPR/cat.yaml" "$TMPR/data" >/dev/null 2>&1
 assert_rc "$?" "1" "non-boolean required: is rejected"
 rm -rf "$TMPR"
 
+echo "== catalog-lint: missing prereqs ref is rejected =="
+TMPP1="$(mktemp -d)"; mkdir -p "$TMPP1/data/guide-sections" "$TMPP1/data/known-issues" "$TMPP1/data/prerequisites"
+cat > "$TMPP1/cat.yaml" <<'YML'
+axes:
+  - id: demo
+    title: Demo
+    question: "Demo?"
+    options:
+      - id: on
+        label: "On"
+        overlay: values-cluster.yaml
+        emits: { foo: bar }
+        guide_sections: []
+        known_issues: []
+        prereqs: [does-not-exist]
+YML
+bash "$LINT" "$TMPP1/cat.yaml" "$TMPP1/data" >/dev/null 2>&1
+assert_rc "$?" "1" "missing prereqs reference is rejected"
+rm -rf "$TMPP1"
+
+echo "== catalog-lint: orphan prerequisites file is rejected =="
+TMPP2="$(mktemp -d)"; mkdir -p "$TMPP2/data/guide-sections" "$TMPP2/data/known-issues" "$TMPP2/data/prerequisites"
+echo "# orphan" > "$TMPP2/data/prerequisites/unused.md"
+cat > "$TMPP2/cat.yaml" <<'YML'
+axes:
+  - id: demo
+    title: Demo
+    question: "Demo?"
+    options:
+      - id: on
+        label: "On"
+        overlay: values-cluster.yaml
+        emits: {}
+        guide_sections: []
+        known_issues: []
+YML
+bash "$LINT" "$TMPP2/cat.yaml" "$TMPP2/data" >/dev/null 2>&1
+assert_rc "$?" "1" "orphan prerequisites file is rejected"
+rm -rf "$TMPP2"
+
 echo ""
 echo "catalog-lint: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
