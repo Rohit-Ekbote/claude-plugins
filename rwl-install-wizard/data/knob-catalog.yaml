@@ -521,6 +521,18 @@ axes:
               readOnlyRootFilesystem: true
               capabilities:
                 drop: ["ALL"]
+          # [5] global.containerSecurityContext.readOnlyRootFilesystem:true breaks
+          # Spilo/Patroni (needs a writable rootfs), and the chart REPLACES the
+          # global context with spilo.containerSecurityContext when set
+          # (spilo-statefulset.yaml:117). Re-assert the other hardening and relax
+          # ONLY readOnlyRootFilesystem. Inert under byo/external postgres (kind!=spilo).
+          postgresql:
+            spilo:
+              containerSecurityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
         guide_sections: [nonroot-uid, readonly-rootfs, webhook-labels-securitycontext]
         known_issues: [vault-init-home-perms, llm-gateway-nonroot-prisma, mass-run-as-root-failures]
 
