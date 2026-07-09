@@ -163,6 +163,19 @@ if command -v helm >/dev/null 2>&1 && [ -f "$CHART/Chart.yaml" ]; then
   else
     no "byo-datastores helm template FAILED: $(head -1 "$TMP.err")"
   fi
+  echo "== RENDER (oracle): STOXX hardened repro — llm off + spilo + snippets off =="
+  SX="$SCRIPT_DIR/fixtures/expected/stoxx-hardened"
+  if helm template rw-stoxx "$CHART" -f "$CHART/values.yaml" \
+       -f "$SX/values-cluster.yaml" -f "$SX/values-storage.yaml" -f "$SX/values-posture.yaml" \
+       >"$TMP" 2>"$TMP.err"; then
+    ok "[1] STOXX combo renders (llmGateway.deploy:false → no model_list fail-fast)"
+    # [5] the Spilo container must NOT inherit the global readOnlyRootFilesystem:true.
+    if grep -q 'readOnlyRootFilesystem: false' "$TMP"; then ok "[5] Spilo container relaxes readOnlyRootFilesystem"; else no "[5] Spilo readOnlyRootFilesystem override did not reach the render"; fi
+    # [4] runner-metric-proxy Ingress renders without snippets.
+    if grep -q 'kind: Ingress' "$TMP" && grep -q 'runner-metrics' "$TMP"; then ok "[4] runner-metric-proxy Ingress rendered without snippets"; else no "[4] runner-metric-proxy Ingress missing under snippets-blocked"; fi
+  else
+    no "[1/4/5] STOXX hardened combo FAILED to render: $(head -1 "$TMP.err")"
+  fi
   rm -f "$TMP" "$TMP.err"
 else
   echo "  SKIP: chart not found at \$RWL_CHART_PATH ($CHART) — static checks only"

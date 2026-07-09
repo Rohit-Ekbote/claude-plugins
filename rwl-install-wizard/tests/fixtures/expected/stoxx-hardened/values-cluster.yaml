@@ -1,0 +1,22 @@
+# Expected values-cluster.yaml — STOXX hardened repro.
+global:
+  domain: stoxx.example.com
+ingress:
+  enabled: true
+  className: nginx
+  allowSnippetAnnotations: false
+  tls:
+    enabled: true
+    existingSecret: ''
+    certManager:
+      enabled: true
+      clusterIssuer: letsencrypt-prod
+runnerMetricProxy:
+  cnValidation:
+    enabled: false
+  ingress:
+    renderWithoutSnippet: true
+postgresql:
+  kind: spilo
+llmGateway:
+  deploy: false
