@@ -176,6 +176,27 @@ bash "$LINT" "$TMPL1/cat.yaml" "$TMPL1/data" >/dev/null 2>&1
 assert_rc "$?" "1" "llmGateway.deploy:true with neither models[] nor configMapName is rejected"
 rm -rf "$TMPL1"
 
+echo "== catalog-lint: non-boolean required: on a param is rejected =="
+TMPR="$(mktemp -d)"; mkdir -p "$TMPR/data/guide-sections" "$TMPR/data/known-issues"
+cat > "$TMPR/cat.yaml" <<'YML'
+axes:
+  - id: demo
+    title: Demo
+    question: "Demo?"
+    options:
+      - id: on
+        label: "On"
+        overlay: values-cluster.yaml
+        params:
+          - { id: p, prompt: "x", required: "yes" }
+        emits: { foo: bar }
+        guide_sections: []
+        known_issues: []
+YML
+bash "$LINT" "$TMPR/cat.yaml" "$TMPR/data" >/dev/null 2>&1
+assert_rc "$?" "1" "non-boolean required: is rejected"
+rm -rf "$TMPR"
+
 echo ""
 echo "catalog-lint: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

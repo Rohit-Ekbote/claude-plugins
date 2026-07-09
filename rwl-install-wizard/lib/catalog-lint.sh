@@ -100,6 +100,9 @@ if ! ruby -ryaml -e '
   cat = YAML.load_file(ARGV[0]); bad = []
   walk = lambda do |pl|
     (pl || []).each do |p|
+      if p.is_a?(Hash) && p.key?("required") && ![true, false].include?(p["required"])
+        bad << (p["id"] || "?"); next
+      end
       next unless p.is_a?(Hash) && p["consumers"]
       c = p["consumers"]
       unless c.is_a?(Hash) && (c.keys - ["equals", "contains"]).empty?

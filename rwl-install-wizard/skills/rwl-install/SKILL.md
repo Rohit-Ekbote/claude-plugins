@@ -53,6 +53,17 @@ Secrets are wired by name (`existingSecret`/`*Ref`) only.
      registry host, UID), prompt for each param and store its value in the
      profile under that axis's answer. These are always non-sensitive shape
      facts — never a secret.
+   - **Required params (hard re-prompt).** A param marked `required: true` is a
+     shape fact the kit cannot guess. You MUST obtain a real value: re-prompt
+     until the operator provides one. Never substitute a placeholder, example, or
+     guessed value, and never silently omit a required param. If the operator
+     genuinely cannot provide it, do NOT generate that axis's overlay — tell them
+     exactly what is blocked and stop that axis. (This is why the kit never ships
+     a guessed ingress class or registry host.)
+   - **dependsOn.** If an axis or option documents a `dependsOn`/appliesWhen
+     precondition (e.g. the ingress-snippets axis applies only when cluster-shape
+     is an Ingress option, not Gateway API), skip it when the precondition is
+     unmet and note the auto-skip to the operator.
    - **Multi-select axes.** If the axis declares `multiSelect: true`, present it
      with the AskUserQuestion tool in multi-select mode: the operator may pick
      any combination of its options, or none. Such an axis has **no `none`

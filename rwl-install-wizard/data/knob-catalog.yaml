@@ -54,14 +54,14 @@ axes:
     title: Cluster environment
     question: "What domain and storage/ingress infrastructure does this cluster use?"
     params:
-      - { id: domain, prompt: "Public base domain (e.g. rw.example.com)" }
-      - { id: ingressClass, prompt: "IngressClass name — must match an ingress controller already installed in the cluster, or the Ingress won't be routed. Discover/confirm it with `kubectl get ingressclass` (common values: nginx, ingress-nginx, traefik)." }
+      - { id: domain, prompt: "Public base domain (e.g. rw.example.com)", required: true }
     options:
       - id: clusterIssuer
         label: "cert-manager ClusterIssuer (ACME / Let's Encrypt or private ACME)"
         overlay: values-cluster.yaml
         params:
           - { id: tlsClusterIssuer, prompt: "cert-manager ClusterIssuer name (e.g. letsencrypt-prod)" }
+          - { id: ingressClass, prompt: "IngressClass name — must match an ingress controller already installed in the cluster (kubectl get ingressclass; common: nginx, ingress-nginx, traefik).", required: true }
         emits:
           global:
             domain: "<DOMAIN>"
@@ -77,13 +77,14 @@ axes:
                 clusterIssuer: "<TLS_CLUSTER_ISSUER>"
         guide_sections: [cluster-domain, ingress-tls]
         known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered, tls-clusterissuer-vs-issuer]
-        prereqs: [cert-manager]
+        prereqs: [cert-manager, ingress-controller]
 
       - id: issuer
         label: "cert-manager Issuer (namespace-scoped; runner-control style)"
         overlay: values-cluster.yaml
         params:
           - { id: tlsIssuer, prompt: "cert-manager Issuer name (namespace-scoped, e.g. selfsigned-issuer)" }
+          - { id: ingressClass, prompt: "IngressClass name — must match an ingress controller already installed in the cluster (kubectl get ingressclass; common: nginx, ingress-nginx, traefik).", required: true }
         emits:
           global:
             domain: "<DOMAIN>"
@@ -101,13 +102,14 @@ axes:
                 clusterIssuer: ""
         guide_sections: [cluster-domain, ingress-tls]
         known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered, tls-clusterissuer-vs-issuer]
-        prereqs: [cert-manager]
+        prereqs: [cert-manager, ingress-controller]
 
       - id: byoSecret
         label: "Bring-your-own TLS Secret (pre-issued wildcard cert in the release namespace)"
         overlay: values-cluster.yaml
         params:
           - { id: tlsSecret, prompt: "Name of the pre-created Kubernetes TLS Secret holding *.<DOMAIN> cert (e.g. wildcard-rw-example-com-tls)" }
+          - { id: ingressClass, prompt: "IngressClass name — must match an ingress controller already installed in the cluster (kubectl get ingressclass; common: nginx, ingress-nginx, traefik).", required: true }
         emits:
           global:
             domain: "<DOMAIN>"
@@ -122,6 +124,21 @@ axes:
                 enabled: false
         guide_sections: [cluster-domain, ingress-tls, secret-preflight-checklist]
         known_issues: [papi-cors-csrf-custom-hosts, ingress-not-rendered]
+        prereqs: [ingress-controller]
+
+      - id: gatewayApi
+        label: "Gateway API — cluster routes via Gateway API (HTTPRoute), not Ingress; the chart's Ingress objects are left disabled"
+        overlay: values-cluster.yaml
+        # [3] Gateway-API clusters do not use the chart's Ingress. Emit ONLY the
+        # domain and touch NO ingress.* keys — the chart default (ingress.enabled:
+        # false) already leaves Ingress objects unrendered. The operator provisions
+        # their own Gateway + HTTPRoute + TLS (see PREREQUISITES: gateway-api).
+        emits:
+          global:
+            domain: "<DOMAIN>"
+        guide_sections: [cluster-domain]
+        known_issues: []
+        prereqs: [gateway-api]
 
   - id: registry-routing
     title: Container registry routing
@@ -149,7 +166,7 @@ axes:
         label: "Air-gap mirror — per-upstream repos, path-preserving (JFrog/Artifactory/JCR, Harbor proxy projects, ECR pull-through). RECOMMENDED for air-gap."
         overlay: values-registry.yaml
         params:
-          - { id: registryHost, prompt: "Mirror registry host (e.g. artifactory.corp.example or jcr.example.com). The per-upstream repo segments below (docker-dockerhub, docker-ghcr, docker-runwhen-self-hosted, docker-suse) are the remote-repo names you created on the mirror — rename them here if your mirror uses different ones." }
+          - { id: registryHost, prompt: "Mirror registry host (e.g. artifactory.corp.example or jcr.example.com). The per-upstream repo segments below (docker-dockerhub, docker-ghcr, docker-runwhen-self-hosted, docker-suse) are the remote-repo names you created on the mirror — rename them here if your mirror uses different ones.", required: true }
           - { id: pullSecretName, prompt: "Name of the pre-created Kubernetes image pull Secret (e.g. jcr-pull-secret)" }
           - { id: helmMirrorUrl, prompt: "Helm CHART repo base URL for the five subchart aliases — a Helm chart repository, NOT the image path above (Artifactory serves charts from a helm-type repo, e.g. https://jcr.example.com/artifactory/helm-virtual; Harbor under /chartrepo/<project> — both distinct from the docker-* image remotes). Leave blank if you mirror only images (charts registered manually)." }
         emits:
@@ -335,6 +352,7 @@ axes:
               imageRepo: rw-workspace-utils
         guide_sections: [registry-jfrog-per-upstream, subchart-alias-mirroring, airgap-image-manifest, chart-version, secret-preflight-checklist, helm-install-command]
         known_issues: [hardcoded-image-refs, embedder-airgap-hang, thin-chart-subchart-aliases, seaweedfs-image-chrislusf]
+        prereqs: [registry-access]
 
   - id: storage-persistence
     title: Persistence tier
