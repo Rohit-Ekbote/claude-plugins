@@ -63,7 +63,7 @@ check_fails() {
   local tdir="$CHART/templates"; [ -d "$tdir" ] || return 0
   local baseline="$SKILL_DIR/fails.baseline"
   ruby "$SKILL_DIR/extract-fails.rb" "$tdir" > "$OUT/fails.chart.full"
-  cut -f1 "$OUT/fails.chart.full" > "$OUT/fails.chart"
+  cut -f1 "$OUT/fails.chart.full" | sort -u > "$OUT/fails.chart"
   # signatures present in the chart but not the baseline = newly added invariants
   comm -13 <(sort -u "$baseline" 2>/dev/null) "$OUT/fails.chart" | while IFS= read -r sig; do
     [ -n "$sig" ] || continue

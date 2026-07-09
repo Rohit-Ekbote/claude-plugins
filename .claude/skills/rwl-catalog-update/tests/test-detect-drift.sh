@@ -131,6 +131,16 @@ cp "$FIX/helpers-extra-fail.tpl" "$CHF/templates/_helpers.tpl"
 bash "$DET" --chart "$CHF" --out "$OUTF" >/dev/null 2>&1
 if grep -q $'\tfail\t.*BRAND NEW GUARD' "$OUTF/findings.tsv"; then ok "new inline fail flagged"; else no "new inline fail not flagged"; fi
 if grep -q 'objectStorage.kind=external requires' "$OUTF/findings.tsv"; then no "baselined fail wrongly re-flagged"; else ok "baselined fail not re-flagged"; fi
+# The fixture has 6 fail lines total: 5 NEW (BRAND NEW GUARD, Zoo.enabled, the
+# underscore-prefixed, digit-prefixed, and mixed-case+underscore ones) and 1
+# already-baselined (objectStorage.kind=external...). Their byte order (what
+# Ruby's Array#sort produces) differs from en_US.UTF-8 collation order, so this
+# exact-count assertion catches a regression to comparing an un-shell-sorted
+# chart operand against the locale-sorted baseline via `comm` (drops/duplicates
+# entries under a non-C locale) even when the two "flagged / not flagged"
+# checks above happen to still pass.
+foundf="$(grep -c $'\tfail\t' "$OUTF/findings.tsv")"
+[ "$foundf" = "5" ] && ok "exactly 5 NEW fails flagged (collation-safe count)" || no "wrong NEW fail count: $foundf (want 5)"
 rm -rf "$OUTF"
 
 echo ""; echo "detect-drift: $PASS passed, $FAIL failed"; [ "$FAIL" -eq 0 ]

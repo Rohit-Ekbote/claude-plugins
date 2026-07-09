@@ -32,9 +32,11 @@ NEVER commits — you review the diff and commit.
    - `kind: fail` — a new inline chart `{{ fail }}` guard (an install-blocking
      invariant) the catalog may not satisfy. Confirm the catalog produces values
      that pass it — model a question/param/emit if not (mirror the chart's
-     `values-example-*.yaml`). Only after the maintainer approves, append the
-     finding's normalized signature to `fails.baseline` so it is not re-flagged.
-     Like validators, structural changes are maintainer-approved.
+     `values-example-*.yaml`). Only after the maintainer approves, then
+     re-generate the baseline from the updated chart —
+     `ruby extract-fails.rb <chart>/templates | cut -f1 | sort -u > fails.baseline`
+     — rather than hand-copying the finding text (the report detail is
+     truncated). Like validators, structural changes are maintainer-approved.
    - `kind: render` — an option no longer renders. Likely a renamed/removed key; propose the mapping from the chart, or propose deprecating the option.
    - `kind: publicRef` — an option leaks a public ref against this chart; propose the per-upstream override that fixes it.
    - `kind: chartCompat` (decide bucket) — the chart version is OUTSIDE the catalog's `chartCompat` range. Do NOT bump the range as a reflex: first reconcile all other drift and confirm the verification gate (step 4) is green, THEN widen `chartCompat:` in `knob-catalog.yaml` (and its header note) to include the new version — that assertion means "the catalog now supports this chart."

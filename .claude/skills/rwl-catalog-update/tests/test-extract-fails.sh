@@ -10,7 +10,7 @@ no(){ printf "  FAIL: %s\n" "$1"; FAIL=$((FAIL+1)); }
 echo "== extract-fails: finds template fail builtins, ignores prose 'fail' =="
 T="$(mktemp -d)"; mkdir -p "$T/sub"
 cat > "$T/a.tpl" <<'TPL'
-# this comment mentions fail but is not a builtin invocation
+# see the fail "docs#fail-codes" reference for details
 {{- if not .Values.foo }}{{ fail "foo is required: set foo.bar" }}{{- end }}
 TPL
 cat > "$T/sub/b.yaml" <<'YML'
@@ -32,6 +32,16 @@ OUT2="$(ruby "$EX" "$T2")"
 [ "$(printf '%s\n' "$OUT2" | grep -c .)" = "1" ] && ok "%q and %s + whitespace normalize to one signature" || no "did not collapse to one"
 printf '%s\n' "$OUT2" | cut -f1 | grep -qx 'x=% is bad' && ok "signature is 'x=% is bad'" || no "unexpected signature: $(printf '%s' "$OUT2" | cut -f1)"
 rm -rf "$T2"
+
+echo "== extract-fails: non-ASCII byte under a C/ASCII locale does NOT crash extraction =="
+# A template comment with a UTF-8 em-dash (—) crashes a naive US-ASCII read under
+# LC_ALL=C ("invalid byte sequence"), which would silently zero out check_fails.
+T3="$(mktemp -d)"
+printf '{{ fail "tag is empty \xE2\x80\x94 pin a tag before install" }}\n' > "$T3/d.tpl"
+OUT3="$(LC_ALL=C ruby "$EX" "$T3" 2>"$T3/err")"
+[ -s "$T3/err" ] && no "extractor errored under LC_ALL=C: $(head -1 "$T3/err")" || ok "no error under LC_ALL=C"
+printf '%s\n' "$OUT3" | grep -q 'tag is empty' && ok "fail with a non-ASCII byte is still captured under LC_ALL=C" || no "non-ASCII fail dropped under LC_ALL=C"
+rm -rf "$T3"
 
 echo ""
 echo "extract-fails: $PASS passed, $FAIL failed"
