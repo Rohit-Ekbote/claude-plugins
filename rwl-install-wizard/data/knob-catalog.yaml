@@ -625,12 +625,18 @@ axes:
     title: LLM endpoint
     question: "How should the platform reach an LLM for chat, background summarisation, and embedding?"
     options:
-      - id: default-bootstrap
-        label: "Default — chart deploys the bundled LiteLLM gateway; operator supplies model_list and providersExistingSecret separately"
+      - id: configure-later
+        label: "Configure later — do NOT deploy the LLM gateway yet (llmGateway.deploy: false); wire model_list before enabling LLM features"
         overlay: values-cluster.yaml
-        emits: {}
+        # [1] The chart fail-fasts when llmGateway.deploy=true (its default) with an
+        # empty model_list. "Configure later" therefore emits deploy:false — a valid,
+        # install-ready state — instead of emitting nothing and leaving the hard-fail latent.
+        emits:
+          llmGateway:
+            deploy: false
         guide_sections: [llm-endpoint]
         known_issues: [llm-bootstrap-egress]
+        prereqs: [llm-configure-later]
 
       - id: internal-openai
         label: "Internal OpenAI-compatible endpoint — wire a corporate or on-premises model gateway via LiteLLM proxy"

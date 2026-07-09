@@ -155,6 +155,27 @@ bash "$LINT" "$TMPS/cat.yaml" "$TMPS/data" >/dev/null 2>&1
 assert_rc "$?" "1" "spilo.* emitted with no option pinning postgresql.kind: spilo is rejected"
 rm -rf "$TMPS"
 
+echo "== catalog-lint: llmGateway.deploy:true without models/configMapName is rejected =="
+TMPL1="$(mktemp -d)"; mkdir -p "$TMPL1/data/guide-sections" "$TMPL1/data/known-issues"
+cat > "$TMPL1/cat.yaml" <<'YML'
+axes:
+  - id: demo
+    title: Demo
+    question: "Demo?"
+    options:
+      - id: on
+        label: "On"
+        overlay: values-cluster.yaml
+        emits:
+          llmGateway:
+            deploy: true
+        guide_sections: []
+        known_issues: []
+YML
+bash "$LINT" "$TMPL1/cat.yaml" "$TMPL1/data" >/dev/null 2>&1
+assert_rc "$?" "1" "llmGateway.deploy:true with neither models[] nor configMapName is rejected"
+rm -rf "$TMPL1"
+
 echo ""
 echo "catalog-lint: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

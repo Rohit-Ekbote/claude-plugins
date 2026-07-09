@@ -138,4 +138,23 @@ if ! ruby -ryaml -e '
     fail "postgresql.spilo.* emitted but no option pins postgresql.kind: spilo"
 fi
 
+# Check 8 ([1]): the chart fail-fasts (templates/llm-gateway/configmap.yaml) when
+# llmGateway.deploy=true and neither models[] nor configMapName is set. Enforce the
+# XOR at emit time so no option can leave that latent hard-fail.
+if ! ruby -ryaml -e '
+  cat = YAML.load_file(ARGV[0]); bad = []
+  (cat["axes"] || []).each do |a|
+    (a["options"] || []).each do |o|
+      em = o["emits"]; next unless em.is_a?(Hash)
+      lg = em["llmGateway"]; next unless lg.is_a?(Hash) && lg["deploy"] == true
+      has_models = lg["models"].is_a?(Array) && !lg["models"].empty?
+      has_cmn    = lg["configMapName"].is_a?(String) && !lg["configMapName"].strip.empty?
+      bad << o["id"] unless has_models ^ has_cmn
+    end
+  end
+  abort("llmGateway.deploy:true requires models[] XOR configMapName: #{bad.join(", ")}") unless bad.empty?
+' "$CATALOG" 2>/dev/null; then
+    fail "an option sets llmGateway.deploy:true without exactly one of models[] / configMapName"
+fi
+
 exit "$problems"
