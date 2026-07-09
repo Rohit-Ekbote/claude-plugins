@@ -56,3 +56,5 @@ llmBootstrap:
       name: customer-embedding
       maxTokens: 0
       dimension: 1536
+postgresql:
+  kind: spilo

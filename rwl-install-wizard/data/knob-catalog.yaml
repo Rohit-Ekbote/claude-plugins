@@ -704,7 +704,13 @@ axes:
     options:
       - id: bundled-all
         label: "Bundled — deploy all five datastores as in-cluster subcharts (default)"
-        emits: {}
+        overlay: values-cluster.yaml
+        emits:
+          # [6] Pin the postgresql backend explicitly. The chart default is spilo
+          # (values.yaml:623), but relying on the default means a byo/external
+          # overlay is not the ONLY thing that can change it. Mirrors objectStorage.kind.
+          postgresql:
+            kind: spilo
         guide_sections: [subchart-bundled]
         known_issues: [postgres-bundled-single-pod, vault-order-of-operations, neo4j-workload-name]
 

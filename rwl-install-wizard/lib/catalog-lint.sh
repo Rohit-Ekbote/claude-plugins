@@ -118,4 +118,24 @@ if ! ruby -ryaml -e '
     fail "malformed consumers: metadata (equals/contains must be non-empty arrays of key names)"
 fi
 
+# Check 7 ([6]): if ANY option emits postgresql.spilo.*, at least one option must
+# pin postgresql.kind: spilo. The chart default is spilo (values.yaml:623) but the
+# wizard must emit it explicitly so a byo/external overlay layered on top is the
+# ONLY thing that flips kind — never an implicit default.
+if ! ruby -ryaml -e '
+  cat = YAML.load_file(ARGV[0])
+  spilo = false; pinned = false
+  (cat["axes"] || []).each do |a|
+    (a["options"] || []).each do |o|
+      em = o["emits"]; next unless em.is_a?(Hash)
+      pg = em["postgresql"]; next unless pg.is_a?(Hash)
+      spilo = true if pg["spilo"]
+      pinned = true if pg["kind"] == "spilo"
+    end
+  end
+  abort("postgresql.spilo.* emitted but no option pins postgresql.kind: spilo") if spilo && !pinned
+' "$CATALOG" 2>/dev/null; then
+    fail "postgresql.spilo.* emitted but no option pins postgresql.kind: spilo"
+fi
+
 exit "$problems"

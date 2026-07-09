@@ -132,6 +132,29 @@ bash "$LINT" "$TMPD/cat.yaml" "$TMPD/data" >/dev/null 2>&1
 assert_rc "$?" "0" "well-formed consumers passes"
 rm -rf "$TMPD"
 
+echo "== catalog-lint: postgresql.spilo.* without a kind:spilo pin is rejected =="
+TMPS="$(mktemp -d)"; mkdir -p "$TMPS/data/guide-sections" "$TMPS/data/known-issues"
+cat > "$TMPS/cat.yaml" <<'YML'
+axes:
+  - id: demo
+    title: Demo
+    question: "Demo?"
+    options:
+      - id: on
+        label: "On"
+        overlay: values-storage.yaml
+        emits:
+          postgresql:
+            spilo:
+              persistence:
+                kind: pvc
+        guide_sections: []
+        known_issues: []
+YML
+bash "$LINT" "$TMPS/cat.yaml" "$TMPS/data" >/dev/null 2>&1
+assert_rc "$?" "1" "spilo.* emitted with no option pinning postgresql.kind: spilo is rejected"
+rm -rf "$TMPS"
+
 echo ""
 echo "catalog-lint: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
