@@ -1,27 +1,24 @@
-## Alert-ingestor ingress: `allowSnippetAnnotations: false` does not suppress hardcoded server-snippet
+## Alert-ingestor ingress snippet under `allowSnippetAnnotations: false`
 
-**Symptom:** When `ingress.allowSnippetAnnotations: false` is set in the chart values,
-the alert-ingestor ingress still emits a `server-snippet` annotation. If the nginx
-ingress controller has snippet annotations disabled (the secure default), the admission
-webhook rejects the Ingress object:
+**Status (chart 0.2.59): resolved.** The alert-ingestor `server-snippet` is now
+gated by `ingress.allowSnippetAnnotations` — the same flag that guards papi's
+snippet, in the shared `templates/ingress/ingress.yaml`. Setting
+`allowSnippetAnnotations: false` no longer makes the admission webhook reject the
+Ingress. (The earlier bug, where the alert-ingestor snippet was emitted
+independently of the flag, has been fixed upstream.)
 
-```
-Error: admission webhook "validate.nginx.ingress.kubernetes.io" denied the request:
-nginx.ingress.kubernetes.io/server-snippet annotation cannot be used. Snippet
-directives are disabled by the Ingress administrator
-```
+**What snippets-off costs you.** On the hardened / `ingress-snippets =
+snippets-blocked` path (`allowSnippetAnnotations: false`), alert-ingestor renders
+its Ingress WITHOUT the `nginx.ingress.kubernetes.io/server-snippet` that denies
+`/metrics` — exactly as papi renders without its `/internal/` deny snippet. The
+endpoints still route; you lose the nginx-level deny rule and must enforce that
+restriction at the network layer if you need it.
 
-**Cause:** The alert-ingestor ingress template has a `server-snippet` annotation
-hardcoded independently of the `ingress.allowSnippetAnnotations` flag. The flag
-guards the papi and runner-metric-proxy snippets but was not wired to the
-alert-ingestor template.
+**Why the wizard has no separate "alert-ingestor" toggle.** Its only purpose was to
+force `allowSnippetAnnotations: true`. Since 0.2.59 gates alert-ingestor on the same
+flag as papi (graceful degradation, no forced snippets), snippet policy is owned
+entirely by the `ingress-snippets` axis: choose `snippets-allowed` if your controller
+permits snippets and you want the deny rules, `snippets-blocked` if it does not.
 
-**Workaround:** Set `ingress.allowSnippetAnnotations: true` in the values overlay
-(the wizard generates this when you select the alert-ingestor option) AND ensure
-the nginx-ingress controller has `controller.allowSnippetAnnotations: true` and
-`controller.config.annotations-risk-level: Critical`.
-
-**Status:** Open — the alert-ingestor template needs its snippet guarded by the
-same `ingress.allowSnippetAnnotations` flag as the other snippets.
-
-_Source: INSTALL-FRICTIONS.md §1 (2026-04-29) — snippet annotations denied; alert-ingestor template gap noted 2026-06-11._
+_Historical: original friction logged INSTALL-FRICTIONS.md §1 (2026-04-29); the
+alert-ingestor template gap was fixed upstream and verified on chart 0.2.59._

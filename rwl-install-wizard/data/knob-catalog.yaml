@@ -867,7 +867,7 @@ axes:
     # not mutually exclusive). No "none" option — selecting nothing IS "none".
     # See SKILL.md step 3 "Multi-select axes" for how the interview handles this.
     multiSelect: true
-    question: "Which optional integrations do you want to enable? Select any combination, or none (Slack, alert-ingestor public ingress, Redis deploy pin)."
+    question: "Which optional integrations do you want to enable? Select any combination, or none (Slack, Redis deploy pin)."
     options:
       - id: slack
         label: "Slack — wire the bundled slackbot to a Slack app via a pre-created credentials Secret"
@@ -879,15 +879,6 @@ axes:
             existingSecret: "<SLACK_SECRET_NAME>"
         guide_sections: [slack, secret-preflight-checklist]
         known_issues: [slackbot-selfhosted]
-
-      - id: alert-ingestor
-        label: "Alert-ingestor — enable ingress snippet annotations required for the alert-ingestor public HTTPS endpoint"
-        overlay: values-cluster.yaml
-        emits:
-          ingress:
-            allowSnippetAnnotations: true
-        guide_sections: [alert-ingestor]
-        known_issues: [alert-ingestor-snippet-annotation]
 
       - id: redis
         label: "Redis — explicitly pin redis.deploy: true (bundled Bitnami subchart; default is already true)"
