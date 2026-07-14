@@ -48,17 +48,6 @@
       "homepage": "https://github.com/Rohit-Ekbote/claude-plugins"
     },
     {
-      "name": "rwl-install-wizard",
-      "description": "Guided installer for the RunWhen platform Helm chart: interview-driven generation of values overlays and tailored install/debug guides",
-      "version": "0.2.0",
-      "source": "./rwl-install-wizard",
-      "author": {
-        "name": "Rohit Ekbote"
-      },
-      "tags": ["helm", "runwhen", "install", "wizard", "values", "kubernetes"],
-      "homepage": "https://github.com/Rohit-Ekbote/claude-plugins"
-    },
-    {
       "name": "fde-tools",
       "description": "Forward Deployed Engineer engagement toolkit: offline field guide, summary, dated progress timeline, dated requirements log, RunWhen solution-design backlog, and an interactive /qna command to interrogate and edit the generated data",
       "version": "0.2.1",

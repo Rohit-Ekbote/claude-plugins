@@ -1,8 +1,0 @@
-neo4j:
-  image:
-    customImage: "<host>/docker-dockerhub/library/neo4j:5.26.99"
-vault:
-  server:
-    image:
-      repository: "<host>/docker-dockerhub/hashicorp/vault"
-      tag: "1.21.2"

@@ -1,6 +1,0 @@
-global:
-  trustBundle:
-    enabled: true
-    existingSecret: corp-ca-bundle
-    bundleFile: ca-bundle.crt
-    setEnvVars: true
